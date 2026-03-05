@@ -35,8 +35,8 @@ def compute_correlation_matrix(
     fac = factors_wide.loc[common]
 
     if use_changes:
-        vol = vol.pct_change().dropna()
-        fac = fac.pct_change().dropna()
+        vol = vol.pct_change(fill_method=None).dropna()
+        fac = fac.pct_change(fill_method=None).dropna()
         common = vol.index.intersection(fac.index)
         vol = vol.loc[common]
         fac = fac.loc[common]

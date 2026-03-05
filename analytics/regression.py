@@ -3,7 +3,6 @@
 import pandas as pd
 import numpy as np
 import statsmodels.api as sm
-from sklearn.preprocessing import StandardScaler
 
 
 def factor_regression(
@@ -31,8 +30,8 @@ def factor_regression(
     X = factor_df.loc[common]
 
     if use_changes:
-        y = y.pct_change().dropna()
-        X = X.pct_change().dropna()
+        y = y.pct_change(fill_method=None).dropna()
+        X = X.pct_change(fill_method=None).dropna()
         common = y.index.intersection(X.index)
         y = y.loc[common]
         X = X.loc[common]
@@ -46,11 +45,8 @@ def factor_regression(
         return {"r2": 0, "adj_r2": 0, "coefficients": {}, "pvalues": {},
                 "residuals": pd.Series(dtype=float), "n_obs": 0}
 
-    # Standardize for comparable coefficients
-    scaler = StandardScaler()
-    X_scaled = pd.DataFrame(
-        scaler.fit_transform(X), columns=X.columns, index=X.index
-    )
+    # Standardize for comparable coefficients (z-score)
+    X_scaled = (X - X.mean()) / X.std()
 
     # OLS
     X_const = sm.add_constant(X_scaled)

@@ -106,8 +106,8 @@ def render_correlations(weekly_vol: pd.DataFrame, weekly_factors: pd.DataFrame, 
             continue
 
         # Use percentage changes
-        vol_chg = vol_pivot[rc_class].pct_change().dropna()
-        fac_chg = fac_pivot[factor_name].pct_change().dropna()
+        vol_chg = vol_pivot[rc_class].pct_change(fill_method=None).dropna()
+        fac_chg = fac_pivot[factor_name].pct_change(fill_method=None).dropna()
         common = vol_chg.index.intersection(fac_chg.index)
 
         if len(common) < 10:

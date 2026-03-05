@@ -9,3 +9,5 @@ dist/
 build/
 .pytest_cache/
 .mypy_cache/
+backfill_turnovers.py
+.claude/

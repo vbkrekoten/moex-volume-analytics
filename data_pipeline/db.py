@@ -1,5 +1,6 @@
 """Supabase client and upsert helpers for vol_* tables."""
 
+import math
 import os
 from typing import Any
 
@@ -43,6 +44,14 @@ def get_client() -> Client:
     return _client
 
 
+def _sanitize_row(row: dict) -> dict:
+    """Replace NaN/inf float values with None for JSON compatibility."""
+    return {
+        k: (None if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v)
+        for k, v in row.items()
+    }
+
+
 def upsert_rows(client: Client, table: str, rows: list[dict[str, Any]],
                 batch_size: int = 500) -> int:
     """Upsert rows into a Supabase table in batches. Returns total upserted."""
@@ -52,7 +61,7 @@ def upsert_rows(client: Client, table: str, rows: list[dict[str, Any]],
     conflict = CONFLICT_COLS.get(table, "")
     total = 0
     for i in range(0, len(rows), batch_size):
-        batch = rows[i : i + batch_size]
+        batch = [_sanitize_row(r) for r in rows[i : i + batch_size]]
         client.table(table).upsert(batch, on_conflict=conflict).execute()
         total += len(batch)
     return total

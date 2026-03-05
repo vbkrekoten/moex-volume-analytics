@@ -22,6 +22,27 @@ from analytics.factors import compute_index_factors, compute_currency_factors
 DATE_FROM = date(2018, 1, 1)
 
 
+def fetch_all_rows(client, table: str) -> pd.DataFrame:
+    """Fetch all rows from a Supabase table, handling the 1000-row default limit."""
+    all_data = []
+    offset = 0
+    page_size = 1000
+    while True:
+        resp = (
+            client.table(table)
+            .select("*")
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        if not resp.data:
+            break
+        all_data.extend(resp.data)
+        if len(resp.data) < page_size:
+            break
+        offset += page_size
+    return pd.DataFrame(all_data) if all_data else pd.DataFrame()
+
+
 def run_full_pipeline(progress_callback=None):
     """
     Run the complete data pipeline:
@@ -107,9 +128,8 @@ def run_full_pipeline(progress_callback=None):
     # --- Step 5: Compute weekly volumes ---
     update_progress("Вычисление недельных агрегатов...", 0.60)
 
-    # Fetch all daily turnovers from DB
-    all_turnovers = client.table("vol_daily_turnovers").select("*").execute()
-    turnovers_full = pd.DataFrame(all_turnovers.data) if all_turnovers.data else pd.DataFrame()
+    # Fetch all daily turnovers from DB (paginated)
+    turnovers_full = fetch_all_rows(client, "vol_daily_turnovers")
 
     if not turnovers_full.empty:
         weekly_vol = to_weekly_volumes(turnovers_full)
@@ -119,13 +139,11 @@ def run_full_pipeline(progress_callback=None):
     # --- Step 6: Compute weekly factors ---
     update_progress("Вычисление факторов...", 0.75)
 
-    # Fetch all index data
-    all_indices = client.table("vol_index_history").select("*").execute()
-    index_full = pd.DataFrame(all_indices.data) if all_indices.data else pd.DataFrame()
+    # Fetch all index data (paginated)
+    index_full = fetch_all_rows(client, "vol_index_history")
 
-    # Fetch all currency data
-    all_rates = client.table("vol_currency_rates").select("*").execute()
-    rates_full = pd.DataFrame(all_rates.data) if all_rates.data else pd.DataFrame()
+    # Fetch all currency data (paginated)
+    rates_full = fetch_all_rows(client, "vol_currency_rates")
 
     factor_frames = []
 
@@ -140,8 +158,7 @@ def run_full_pipeline(progress_callback=None):
         factor_frames.append(cur_factors)
 
     # Macro factors (CPI, M2, key rate) - forward-fill monthly to weekly
-    all_macro = client.table("vol_macro").select("*").execute()
-    macro_full = pd.DataFrame(all_macro.data) if all_macro.data else pd.DataFrame()
+    macro_full = fetch_all_rows(client, "vol_macro")
 
     if not macro_full.empty and not turnovers_full.empty:
         # Get weekly dates from volume data

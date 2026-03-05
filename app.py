@@ -40,13 +40,29 @@ params = render_sidebar()
 
 
 # --- Load data with caching ---
+def _fetch_all(table: str) -> list[dict]:
+    """Fetch all rows from a Supabase table, paginating past the 1000-row default."""
+    client = get_client()
+    all_data: list[dict] = []
+    offset = 0
+    page_size = 1000
+    while True:
+        resp = client.table(table).select("*").range(offset, offset + page_size - 1).execute()
+        if not resp.data:
+            break
+        all_data.extend(resp.data)
+        if len(resp.data) < page_size:
+            break
+        offset += page_size
+    return all_data
+
+
 @st.cache_data(ttl=3600)
 def load_weekly_volumes():
     """Load pre-aggregated weekly volumes from Supabase."""
-    client = get_client()
-    resp = client.table("vol_weekly_volumes").select("*").execute()
-    if resp.data:
-        df = pd.DataFrame(resp.data)
+    data = _fetch_all("vol_weekly_volumes")
+    if data:
+        df = pd.DataFrame(data)
         for col in ["total_value", "avg_daily"]:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -57,10 +73,9 @@ def load_weekly_volumes():
 @st.cache_data(ttl=3600)
 def load_weekly_factors():
     """Load pre-computed weekly factors from Supabase."""
-    client = get_client()
-    resp = client.table("vol_weekly_factors").select("*").execute()
-    if resp.data:
-        df = pd.DataFrame(resp.data)
+    data = _fetch_all("vol_weekly_factors")
+    if data:
+        df = pd.DataFrame(data)
         df["value"] = pd.to_numeric(df["value"], errors="coerce")
         return df
     return pd.DataFrame()

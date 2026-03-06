@@ -60,12 +60,13 @@ def stacked_area_chart(weekly_vol: pd.DataFrame, pct_mode: bool = False) -> go.F
 
     fig = go.Figure()
     for i, col in enumerate(pivot.columns):
+        color = COLORS[i % len(COLORS)]
         fig.add_trace(go.Scatter(
             x=pivot.index, y=pivot[col],
             name=col,
             stackgroup="one",
-            fillcolor=_hex_to_rgba(COLORS[i % len(COLORS)], 0.5),
-            line=dict(color=COLORS[i % len(COLORS)], width=0.5),
+            line=dict(color=color, width=0.5),
+            opacity=0.7,
         ))
 
     y_title = "Доля, %" if pct_mode else "Объём, млн руб."

@@ -16,6 +16,25 @@ from ui.charts import (
 from analytics.correlation import compute_correlation_matrix, rolling_correlation
 from analytics.regression import factor_regression, rolling_regression_r2
 from analytics.validation import compute_factor_stability
+from analytics.ai_commentary import (
+    generate_factor_summary_commentary,
+    generate_correlation_commentary,
+    generate_regression_commentary,
+)
+
+
+def _render_ai_commentary(text: str):
+    """Render AI-generated commentary in a styled glass card."""
+    if not text:
+        return
+    st.markdown(
+        f'<div class="glass-card" style="border-left: 3px solid #00d4ff;">'
+        f'<div style="font-size: 0.7rem; color: #6b7280; margin-bottom: 0.4rem;">'
+        f'🤖 AI-комментарий</div>'
+        f'<div style="font-size: 0.88rem; color: #d1d5db; line-height: 1.55;">'
+        f'{text}</div></div>',
+        unsafe_allow_html=True,
+    )
 
 
 def _term_tooltip(term_key: str, label: str | None = None):
@@ -186,6 +205,13 @@ def _render_factor_summary(
             with cols[col_i]:
                 _render_single_factor_card(finfo)
 
+    # AI commentary for factor summary
+    class_label = CLASS_MAP_REVERSE.get(selected_class, selected_class)
+    commentary = generate_factor_summary_commentary(
+        factors_list, class_label, FACTORS,
+    )
+    _render_ai_commentary(commentary)
+
 
 def _render_single_factor_card(finfo: dict):
     """Render a single factor validation card."""
@@ -282,6 +308,13 @@ def _render_correlation_block(
     if not corr_matrix.empty:
         fig = correlation_heatmap(corr_matrix)
         st.plotly_chart(fig, use_container_width=True)
+
+        # AI commentary for correlation
+        corr_data = corr_matrix.to_dict()
+        commentary = generate_correlation_commentary(
+            corr_data, method, CLASS_MAP_REVERSE, FACTORS,
+        )
+        _render_ai_commentary(commentary)
     else:
         st.info("Недостаточно данных для матрицы корреляций.")
 
@@ -381,6 +414,15 @@ def _render_regression_block(
         st.markdown("###### Остатки модели")
         fig = residuals_chart(result["residuals"])
         st.plotly_chart(fig, use_container_width=True)
+
+    # AI commentary for regression
+    reg_class_label = CLASS_MAP_REVERSE.get(sel_class, sel_class)
+    commentary = generate_regression_commentary(
+        result["r2"], result["adj_r2"], result["n_obs"],
+        result["coefficients"], result["pvalues"],
+        reg_class_label, FACTORS,
+    )
+    _render_ai_commentary(commentary)
 
     # Rolling R² stability
     with st.expander("Стабильность модели (Rolling R²)", expanded=False):

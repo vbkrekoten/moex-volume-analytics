@@ -32,6 +32,7 @@ FACTORS = {
     "cpi_yoy": "Инфляция ИПЦ (г/г)",
     "real_rate": "Реальная ставка",
     "volume_momentum": "Импульс оборотов",
+    "num_trades": "Число сделок",
 }
 
 # Detailed factor descriptions with formulas (for tooltips/popovers)
@@ -125,6 +126,12 @@ FACTOR_DESCRIPTIONS = {
         "description": "Скользящее среднее совокупного дневного оборота за 5 дней с лагом в 1 день. Показывает недавнюю торговую активность.",
         "formula": "SMA(Total_Turnover, 5).shift(1) / 10^9",
         "unit": "млрд руб.",
+    },
+    "num_trades": {
+        "name": "Число сделок",
+        "description": "Суммарное количество заключённых сделок по всем классам инструментов за торговый день.",
+        "formula": "SUM(num_trades) / 1000",
+        "unit": "тыс. сделок",
     },
 }
 

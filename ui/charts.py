@@ -32,6 +32,13 @@ DARK_LAYOUT = dict(
 )
 
 
+def _hex_to_rgba(hex_color: str, alpha: float = 0.5) -> str:
+    """Convert hex color (#RRGGBB) to rgba() string."""
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
 def stacked_area_chart(weekly_vol: pd.DataFrame, pct_mode: bool = False) -> go.Figure:
     """Stacked area chart of weekly volumes by instrument class."""
     if weekly_vol.empty:
@@ -57,7 +64,7 @@ def stacked_area_chart(weekly_vol: pd.DataFrame, pct_mode: bool = False) -> go.F
             x=pivot.index, y=pivot[col],
             name=col,
             stackgroup="one",
-            fillcolor=COLORS[i % len(COLORS)] + "80",
+            fillcolor=_hex_to_rgba(COLORS[i % len(COLORS)], 0.5),
             line=dict(color=COLORS[i % len(COLORS)], width=0.5),
         ))
 

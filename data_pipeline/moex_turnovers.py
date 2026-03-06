@@ -1,10 +1,13 @@
 """Fetch daily trading turnovers from MOEX ISS by engine/market."""
 
+import logging
 import time
 from datetime import date, timedelta
 
 import pandas as pd
 import requests
+
+logger = logging.getLogger(__name__)
 
 # Mapping from (engine, market) to normalized instrument_class
 MARKET_CLASS_MAP = {
@@ -42,7 +45,8 @@ def _fetch_turnovers_for_date(dt: date) -> list[dict]:
             r = requests.get(url, params=params, timeout=TIMEOUT)
             r.raise_for_status()
             data = r.json()
-        except Exception:
+        except Exception as e:
+            logger.warning("MOEX API error for %s/%s: %s", engine, date_str, e)
             continue
 
         turnovers = data.get("turnovers", {})

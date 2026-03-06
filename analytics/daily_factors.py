@@ -37,14 +37,17 @@ def _to_long(series: pd.Series, factor_name: str) -> pd.DataFrame:
 # Individual factor computations
 # ---------------------------------------------------------------------------
 
-def _compute_volatility(imoex: pd.DataFrame, window: int = 20) -> pd.DataFrame:
-    """Realized volatility: 20-day rolling std of log returns, annualized."""
-    if imoex.empty:
+def _compute_volatility_from_intraday(rv_series: pd.Series | None) -> pd.DataFrame:
+    """Use pre-computed Realized Volatility from intraday candles.
+
+    RV_t = sqrt( sum(r_{t,i}^2) ) * sqrt(252) * 100
+
+    where r_{t,i} are intraday log returns from 10-min candles.
+    If rv_series is None, returns empty DataFrame.
+    """
+    if rv_series is None or rv_series.empty:
         return pd.DataFrame()
-    s = imoex.set_index("trade_date")["close_val"].sort_index()
-    log_ret = np.log(s / s.shift(1))
-    rv = log_ret.rolling(window).std() * np.sqrt(252) * 100
-    return _to_long(rv, "volatility")
+    return _to_long(rv_series, "volatility")
 
 
 def _compute_adx_daily(imoex: pd.DataFrame) -> pd.DataFrame:
@@ -260,6 +263,7 @@ def compute_all_daily_factors(
     brent_df: pd.DataFrame,
     turnovers_df: pd.DataFrame,
     deposits_df: pd.DataFrame | None = None,
+    rv_series: pd.Series | None = None,
 ) -> pd.DataFrame:
     """
     Compute all daily factors from raw data sources.
@@ -284,7 +288,7 @@ def compute_all_daily_factors(
 
     # Compute each factor with error isolation
     factor_computations = [
-        ("volatility", lambda: _compute_volatility(imoex)),
+        ("volatility", lambda: _compute_volatility_from_intraday(rv_series)),
         ("trend_strength", lambda: _compute_adx_daily(imoex)),
         ("trend_direction", lambda: _compute_trend_direction(imoex)),
         ("index_level", lambda: _compute_index_level(imoex)),

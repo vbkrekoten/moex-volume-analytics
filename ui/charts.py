@@ -239,11 +239,12 @@ def correlation_heatmap(corr_matrix: pd.DataFrame) -> go.Figure:
         ),
     ))
 
-    fig.update_layout(
+    layout = {
         **DARK_LAYOUT,
-        height=max(280, len(index_labels) * 55 + 80),
-        xaxis=dict(tickangle=-45, tickfont=dict(size=10)),
-    )
+        "height": max(280, len(index_labels) * 55 + 80),
+        "xaxis": {**DARK_LAYOUT.get("xaxis", {}), "tickangle": -45, "tickfont": dict(size=10)},
+    }
+    fig.update_layout(**layout)
     return fig
 
 

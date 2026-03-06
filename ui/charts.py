@@ -183,11 +183,11 @@ def combined_turnover_factor_chart(
                 secondary_y=True,
             )
 
-    fig.update_layout(
+    layout_overrides = {
         **DARK_LAYOUT,
-        hovermode="x unified",
-        height=450,
-        legend=dict(
+        "hovermode": "x unified",
+        "height": 450,
+        "legend": dict(
             bgcolor="rgba(17,24,39,0.7)",
             bordercolor="rgba(240,180,41,0.1)",
             borderwidth=1,
@@ -198,7 +198,8 @@ def combined_turnover_factor_chart(
             xanchor="left",
             x=0,
         ),
-    )
+    }
+    fig.update_layout(**layout_overrides)
     fig.update_yaxes(title_text="Оборот, млн руб.", secondary_y=False)
     if has_factors:
         fig.update_yaxes(title_text="Значение фактора", secondary_y=True)

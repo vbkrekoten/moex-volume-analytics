@@ -16,6 +16,7 @@ CONFLICT_COLS = {
     "vol_macro": "period_date,indicator",
     "vol_weekly_volumes": "week_start,instrument_class",
     "vol_weekly_factors": "week_start,factor_name",
+    "vol_daily_factors": "trade_date,factor_name",
 }
 
 

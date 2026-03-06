@@ -15,10 +15,10 @@ def compute_correlation_matrix(
     Compute correlation matrix between volume series and factor series.
 
     Args:
-        volumes_wide: pivot table (week_start index, instrument_class columns, total_value values)
-        factors_wide: pivot table (week_start index, factor_name columns, value values)
-        method: 'pearson' or 'spearman'
-        use_changes: if True, compute on week-over-week % changes to avoid spurious correlation.
+        volumes_wide: pivot table (date index, instrument_class columns, values).
+        factors_wide: pivot table (date index, factor_name columns, values).
+        method: 'pearson' or 'spearman'.
+        use_changes: if True, compute on day-over-day % changes.
 
     Returns:
         Correlation matrix DataFrame (volume classes as rows, factors as columns).
@@ -28,7 +28,7 @@ def compute_correlation_matrix(
 
     # Align on common dates
     common = volumes_wide.index.intersection(factors_wide.index)
-    if len(common) < 10:
+    if len(common) < 20:
         return pd.DataFrame()
 
     vol = volumes_wide.loc[common]
@@ -48,7 +48,7 @@ def compute_correlation_matrix(
             v = vol[vc].dropna()
             f = fac[fc].dropna()
             common_idx = v.index.intersection(f.index)
-            if len(common_idx) < 10:
+            if len(common_idx) < 20:
                 result.loc[vc, fc] = np.nan
                 continue
             if method == "spearman":
@@ -63,21 +63,23 @@ def compute_correlation_matrix(
 def rolling_correlation(
     volume_series: pd.Series,
     factor_series: pd.Series,
-    window: int = 26,
+    window: int = 90,
     method: str = "pearson",
 ) -> pd.DataFrame:
     """
     Compute rolling correlation between a volume series and a factor series.
 
-    Returns: DataFrame with (week_start, correlation) columns.
+    Args:
+        window: rolling window in trading days (default 90 ~ 3 months).
+
+    Returns: DataFrame with (date, correlation) columns.
     """
-    # Align
     common = volume_series.index.intersection(factor_series.index)
-    if len(common) < window + 5:
+    if len(common) < window + 10:
         return pd.DataFrame()
 
-    vol = volume_series.loc[common].pct_change().dropna()
-    fac = factor_series.loc[common].pct_change().dropna()
+    vol = volume_series.loc[common].pct_change(fill_method=None).dropna()
+    fac = factor_series.loc[common].pct_change(fill_method=None).dropna()
     common = vol.index.intersection(fac.index)
     vol = vol.loc[common]
     fac = fac.loc[common]
@@ -91,5 +93,5 @@ def rolling_correlation(
         corr = vol.rolling(window).corr(fac)
 
     result = corr.dropna().reset_index()
-    result.columns = ["week_start", "correlation"]
+    result.columns = ["date", "correlation"]
     return result

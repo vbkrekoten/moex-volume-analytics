@@ -15,8 +15,10 @@ from data_pipeline.moex_indices import fetch_all_indices
 from data_pipeline.cbr_currencies import fetch_all_currencies
 from data_pipeline.cbr_macro import fetch_all_macro
 from data_pipeline.cpi_data import load_cpi
+from data_pipeline.moex_brent import fetch_brent_from_db
 from data_pipeline.aggregator import to_weekly_volumes, forward_fill_monthly_to_weekly
 from analytics.factors import compute_index_factors, compute_currency_factors
+from analytics.daily_factors import compute_all_daily_factors
 
 
 DATE_FROM = date(2018, 1, 1)
@@ -175,6 +177,31 @@ def run_full_pipeline(progress_callback=None):
         all_factors = pd.concat(factor_frames, ignore_index=True)
         if not all_factors.empty:
             upsert_rows(client, "vol_weekly_factors", all_factors.to_dict("records"))
+
+    # --- Step 7: Compute daily factors ---
+    update_progress("Вычисление дневных факторов...", 0.85)
+
+    # Re-fetch full daily tables for factor computation
+    if turnovers_full.empty:
+        turnovers_full = fetch_all_rows(client, "vol_daily_turnovers")
+    if index_full.empty:
+        index_full = fetch_all_rows(client, "vol_index_history")
+    if rates_full.empty:
+        rates_full = fetch_all_rows(client, "vol_currency_rates")
+    if macro_full.empty:
+        macro_full = fetch_all_rows(client, "vol_macro")
+
+    brent_df = fetch_brent_from_db()
+
+    daily_factors = compute_all_daily_factors(
+        index_df=index_full,
+        currency_df=rates_full,
+        macro_df=macro_full,
+        brent_df=brent_df,
+        turnovers_df=turnovers_full,
+    )
+    if not daily_factors.empty:
+        upsert_rows(client, "vol_daily_factors", daily_factors.to_dict("records"))
 
     update_progress("Готово!", 1.0)
 

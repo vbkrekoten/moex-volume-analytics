@@ -218,6 +218,37 @@ def _compute_num_trades(turnovers_df: pd.DataFrame) -> pd.DataFrame:
     return _to_long(daily_total, "num_trades")
 
 
+def _compute_hh_deposits(deposits_df: pd.DataFrame | None,
+                          macro_df: pd.DataFrame,
+                          cal: pd.DatetimeIndex) -> pd.DataFrame:
+    """Household bank deposits in trillions RUB, forward-filled to trading days.
+
+    Accepts either a dedicated deposits_df or falls back to
+    HH_DEPOSITS rows in macro_df.
+    """
+    df = None
+    if deposits_df is not None and not deposits_df.empty:
+        df = deposits_df.copy()
+    elif not macro_df.empty:
+        # Try to extract from vol_macro table
+        hh = macro_df[macro_df["indicator"] == "HH_DEPOSITS"].copy()
+        if not hh.empty:
+            df = hh
+
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    df["period_date"] = pd.to_datetime(df["period_date"])
+    df["value"] = pd.to_numeric(df["value"], errors="coerce")
+    # Convert from billions to trillions
+    s = df.set_index("period_date")["value"].sort_index() / 1000
+    s = s[~s.index.duplicated(keep="last")]
+    # Reindex to daily calendar and forward-fill
+    combined = s.reindex(s.index.union(cal)).sort_index().ffill()
+    combined = combined.reindex(cal).dropna()
+    return _to_long(combined, "hh_deposits")
+
+
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
@@ -228,9 +259,10 @@ def compute_all_daily_factors(
     macro_df: pd.DataFrame,
     brent_df: pd.DataFrame,
     turnovers_df: pd.DataFrame,
+    deposits_df: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """
-    Compute all 15+ daily factors from raw data sources.
+    Compute all daily factors from raw data sources.
 
     Returns DataFrame with (trade_date, factor_name, value) rows
     ready for upsert into vol_daily_factors.
@@ -265,6 +297,7 @@ def compute_all_daily_factors(
         ("real_rate", lambda: _compute_real_rate(macro_df, cal)),
         ("volume_momentum", lambda: _compute_volume_momentum(turnovers_df)),
         ("num_trades", lambda: _compute_num_trades(turnovers_df)),
+        ("hh_deposits", lambda: _compute_hh_deposits(deposits_df, macro_df, cal)),
     ]
 
     for name, fn in factor_computations:

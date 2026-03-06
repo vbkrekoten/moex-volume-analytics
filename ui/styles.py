@@ -112,6 +112,24 @@ def load_custom_css():
         color: #f0b429;
     }
 
+    /* === Term tooltip badge === */
+    .term-badge {
+        display: inline-block;
+        background: rgba(0, 212, 255, 0.08);
+        border: 1px solid rgba(0, 212, 255, 0.15);
+        border-radius: 6px;
+        padding: 0.15rem 0.5rem;
+        font-size: 0.78rem;
+        color: #74c0fc;
+        cursor: help;
+        margin: 0.1rem 0.2rem;
+        transition: all 0.2s;
+    }
+    .term-badge:hover {
+        background: rgba(0, 212, 255, 0.15);
+        border-color: rgba(0, 212, 255, 0.3);
+    }
+
     /* Hide default streamlit header padding */
     .block-container {
         padding-top: 2rem;

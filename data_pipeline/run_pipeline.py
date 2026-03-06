@@ -16,6 +16,7 @@ from data_pipeline.cbr_currencies import fetch_all_currencies
 from data_pipeline.cbr_macro import fetch_all_macro
 from data_pipeline.cpi_data import load_cpi
 from data_pipeline.moex_brent import fetch_brent_from_db
+from data_pipeline.cbr_deposits import fetch_household_deposits
 from data_pipeline.aggregator import to_weekly_volumes, forward_fill_monthly_to_weekly
 from analytics.factors import compute_index_factors, compute_currency_factors
 from analytics.daily_factors import compute_all_daily_factors
@@ -193,12 +194,23 @@ def run_full_pipeline(progress_callback=None):
 
     brent_df = fetch_brent_from_db()
 
+    # Fetch household deposits from CBR
+    try:
+        deposits_df = fetch_household_deposits(DATE_FROM)
+        if not deposits_df.empty:
+            upsert_rows(client, "vol_macro", deposits_df.to_dict("records"))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Failed to fetch CBR deposits: %s", e)
+        deposits_df = pd.DataFrame()
+
     daily_factors = compute_all_daily_factors(
         index_df=index_full,
         currency_df=rates_full,
         macro_df=macro_full,
         brent_df=brent_df,
         turnovers_df=turnovers_full,
+        deposits_df=deposits_df,
     )
     if not daily_factors.empty:
         upsert_rows(client, "vol_daily_factors", daily_factors.to_dict("records"))

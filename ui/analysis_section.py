@@ -4,7 +4,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-from ui.sidebar import FACTORS, FACTOR_DESCRIPTIONS, CLASS_MAP_REVERSE
+from ui.sidebar import FACTORS, FACTOR_DESCRIPTIONS, TERM_DESCRIPTIONS, CLASS_MAP_REVERSE
 from ui.charts import (
     correlation_heatmap,
     scatter_with_regression,
@@ -16,6 +16,36 @@ from ui.charts import (
 from analytics.correlation import compute_correlation_matrix, rolling_correlation
 from analytics.regression import factor_regression, rolling_regression_r2
 from analytics.validation import compute_factor_stability
+
+
+def _term_tooltip(term_key: str, label: str | None = None):
+    """Render an inline tooltip (popover) for an analytical term."""
+    desc = TERM_DESCRIPTIONS.get(term_key, {})
+    if not desc:
+        return
+    display = label or desc.get("name", term_key)
+    with st.popover(f"ℹ {display}", use_container_width=True):
+        st.markdown(f"**{desc.get('name', display)}**")
+        st.markdown(desc.get("description", ""))
+        if desc.get("formula"):
+            st.markdown(
+                f'<div class="formula-block">{desc["formula"]}</div>',
+                unsafe_allow_html=True,
+            )
+
+
+def _render_term_tooltips_row(term_keys: list[str]):
+    """Render a row of analytical term tooltips."""
+    n_cols = min(5, len(term_keys))
+    if n_cols == 0:
+        return
+    cols = st.columns(n_cols)
+    for i, key in enumerate(term_keys):
+        desc = TERM_DESCRIPTIONS.get(key, {})
+        if not desc:
+            continue
+        with cols[i % n_cols]:
+            _term_tooltip(key)
 
 
 def _prepare_volumes_wide(daily_vol: pd.DataFrame, params: dict) -> pd.DataFrame:
@@ -121,9 +151,11 @@ def _render_factor_summary(
     with col_info:
         st.caption(
             "Карточки показывают силу связи каждого фактора с оборотами выбранного класса. "
-            "R² — доля объяснённой дисперсии. Цвет: зелёный (p<0.01), жёлтый (p<0.05), "
+            "Цвет: зелёный (p<0.01), жёлтый (p<0.05), "
             "оранжевый (p<0.10), серый (незначим)."
         )
+        # Term tooltips for factor cards
+        _render_term_tooltips_row(["r_squared", "p_value", "oos_r2", "stability"])
 
     # Factor tooltips row
     st.markdown("##### Описание факторов")
@@ -224,6 +256,9 @@ def _render_correlation_block(
     """Correlation heatmap + rolling correlation explorer."""
     st.markdown("##### Корреляция оборотов с факторами")
 
+    # Term tooltips for correlation section
+    _render_term_tooltips_row(["correlation", "pearson", "spearman", "pct_change"])
+
     c1, c2 = st.columns([1, 1])
     with c1:
         method = st.radio(
@@ -252,6 +287,7 @@ def _render_correlation_block(
 
     # Rolling correlation explorer
     st.markdown("##### Скользящая корреляция")
+    _render_term_tooltips_row(["rolling_correlation"])
     c1, c2 = st.columns(2)
     with c1:
         vol_class = st.selectbox(
@@ -303,6 +339,10 @@ def _render_regression_block(
 ):
     """Multi-factor regression analysis."""
     st.markdown("##### Многофакторная регрессия")
+
+    # Term tooltips for regression section
+    _render_term_tooltips_row(["regression", "r_squared", "adj_r_squared", "std_coefficient"])
+    _render_term_tooltips_row(["p_value", "residuals", "rolling_r2"])
 
     class_options = vol_wide.columns.tolist()
     sel_class = st.selectbox(

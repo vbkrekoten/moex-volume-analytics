@@ -221,22 +221,28 @@ def _compute_num_trades(turnovers_df: pd.DataFrame) -> pd.DataFrame:
     return _to_long(daily_total, "num_trades")
 
 
-def _compute_hh_deposits(deposits_df: pd.DataFrame | None,
-                          macro_df: pd.DataFrame,
-                          cal: pd.DatetimeIndex) -> pd.DataFrame:
-    """Household bank deposits in trillions RUB, forward-filled to trading days.
+def _compute_hh_savings(savings_df: pd.DataFrame | None,
+                         macro_df: pd.DataFrame,
+                         cal: pd.DatetimeIndex) -> pd.DataFrame:
+    """Household savings in trillions RUB, forward-filled to trading days.
 
-    Accepts either a dedicated deposits_df or falls back to
-    HH_DEPOSITS rows in macro_df.
+    Uses HH_SAVINGS_TOTAL from savings_df (all components incl. escrow).
+    Falls back to HH_SAVINGS_TOTAL or HH_DEPOSITS in macro_df.
     """
     df = None
-    if deposits_df is not None and not deposits_df.empty:
-        df = deposits_df.copy()
-    elif not macro_df.empty:
-        # Try to extract from vol_macro table
-        hh = macro_df[macro_df["indicator"] == "HH_DEPOSITS"].copy()
-        if not hh.empty:
-            df = hh
+    if savings_df is not None and not savings_df.empty:
+        # Use total from the structured savings data
+        total = savings_df[savings_df["indicator"] == "HH_SAVINGS_TOTAL"]
+        if not total.empty:
+            df = total.copy()
+
+    if (df is None or df.empty) and not macro_df.empty:
+        # Fallback: try HH_SAVINGS_TOTAL or HH_DEPOSITS in vol_macro
+        for ind in ("HH_SAVINGS_TOTAL", "HH_DEPOSITS"):
+            hh = macro_df[macro_df["indicator"] == ind].copy()
+            if not hh.empty:
+                df = hh
+                break
 
     if df is None or df.empty:
         return pd.DataFrame()
@@ -249,7 +255,7 @@ def _compute_hh_deposits(deposits_df: pd.DataFrame | None,
     # Reindex to daily calendar and forward-fill
     combined = s.reindex(s.index.union(cal)).sort_index().ffill()
     combined = combined.reindex(cal).dropna()
-    return _to_long(combined, "hh_deposits")
+    return _to_long(combined, "hh_savings")
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +268,7 @@ def compute_all_daily_factors(
     macro_df: pd.DataFrame,
     brent_df: pd.DataFrame,
     turnovers_df: pd.DataFrame,
-    deposits_df: pd.DataFrame | None = None,
+    savings_df: pd.DataFrame | None = None,
     rv_series: pd.Series | None = None,
 ) -> pd.DataFrame:
     """
@@ -301,7 +307,7 @@ def compute_all_daily_factors(
         ("real_rate", lambda: _compute_real_rate(macro_df, cal)),
         ("volume_momentum", lambda: _compute_volume_momentum(turnovers_df)),
         ("num_trades", lambda: _compute_num_trades(turnovers_df)),
-        ("hh_deposits", lambda: _compute_hh_deposits(deposits_df, macro_df, cal)),
+        ("hh_savings", lambda: _compute_hh_savings(savings_df, macro_df, cal)),
     ]
 
     for name, fn in factor_computations:

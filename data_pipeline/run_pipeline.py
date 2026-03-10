@@ -16,7 +16,7 @@ from data_pipeline.cbr_currencies import fetch_all_currencies
 from data_pipeline.cbr_macro import fetch_all_macro
 from data_pipeline.cpi_data import load_cpi
 from data_pipeline.moex_brent import fetch_brent_from_db
-from data_pipeline.cbr_deposits import fetch_household_deposits
+from data_pipeline.cbr_deposits import fetch_household_savings
 from data_pipeline.moex_intraday import fetch_intraday_candles, compute_realized_volatility
 from data_pipeline.aggregator import to_weekly_volumes, forward_fill_monthly_to_weekly
 from analytics.factors import compute_index_factors, compute_currency_factors
@@ -212,15 +212,15 @@ def run_full_pipeline(progress_callback=None):
 
     brent_df = fetch_brent_from_db()
 
-    # Fetch household deposits from CBR
+    # Fetch household savings from CBR (all components)
     try:
-        deposits_df = fetch_household_deposits(DATE_FROM)
-        if not deposits_df.empty:
-            upsert_rows(client, "vol_macro", deposits_df.to_dict("records"))
+        savings_df = fetch_household_savings(DATE_FROM)
+        if not savings_df.empty:
+            upsert_rows(client, "vol_macro", savings_df.to_dict("records"))
     except Exception as e:
         import logging
-        logging.getLogger(__name__).warning("Failed to fetch CBR deposits: %s", e)
-        deposits_df = pd.DataFrame()
+        logging.getLogger(__name__).warning("Failed to fetch CBR savings data: %s", e)
+        savings_df = pd.DataFrame()
 
     daily_factors = compute_all_daily_factors(
         index_df=index_full,
@@ -228,7 +228,7 @@ def run_full_pipeline(progress_callback=None):
         macro_df=macro_full,
         brent_df=brent_df,
         turnovers_df=turnovers_full,
-        deposits_df=deposits_df,
+        savings_df=savings_df,
         rv_series=rv_series,
     )
     if not daily_factors.empty:

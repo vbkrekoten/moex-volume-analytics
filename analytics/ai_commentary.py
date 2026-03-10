@@ -9,9 +9,11 @@ import json
 import logging
 import os
 
-import streamlit as st
-
 logger = logging.getLogger(__name__)
+
+# Simple in-memory cache to avoid re-calling the API on every rerender.
+# Cleared when the Streamlit app restarts (new process).
+_commentary_cache: dict[str, str] = {}
 
 
 def _get_api_key() -> str | None:
@@ -19,7 +21,8 @@ def _get_api_key() -> str | None:
     key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not key:
         try:
-            key = st.secrets.get("ANTHROPIC_API_KEY", "")
+            import streamlit as st
+            key = st.secrets["ANTHROPIC_API_KEY"]
         except Exception:
             pass
     return key or None
@@ -31,9 +34,11 @@ def _hash_data(data: dict) -> str:
     return hashlib.md5(serialized.encode()).hexdigest()
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def _call_claude(prompt: str, data_hash: str) -> str:
-    """Call Claude API with caching. data_hash is used for cache key."""
+def _call_claude(prompt: str, cache_key: str) -> str:
+    """Call Claude API with in-memory caching."""
+    if cache_key in _commentary_cache:
+        return _commentary_cache[cache_key]
+
     api_key = _get_api_key()
     if not api_key:
         return ""
@@ -46,7 +51,9 @@ def _call_claude(prompt: str, data_hash: str) -> str:
             max_tokens=800,
             messages=[{"role": "user", "content": prompt}],
         )
-        return response.content[0].text
+        text = response.content[0].text
+        _commentary_cache[cache_key] = text
+        return text
     except ImportError:
         logger.warning("anthropic package not installed")
         return ""
@@ -64,7 +71,6 @@ def generate_factor_summary_commentary(
     if not stability_data:
         return ""
 
-    # Build a concise data summary for the prompt
     factors_info = []
     for f in stability_data:
         fname = factor_labels.get(f["factor"], f["factor"])
@@ -89,9 +95,9 @@ def generate_factor_summary_commentary(
 
 Пиши на русском, кратко, профессионально. Не повторяй числа — интерпретируй их."""
 
-    data_hash = _hash_data({"type": "factor_summary", "class": class_name,
+    cache_key = _hash_data({"type": "factor_summary", "class": class_name,
                              "data": stability_data})
-    return _call_claude(prompt, data_hash)
+    return _call_claude(prompt, cache_key)
 
 
 def generate_correlation_commentary(
@@ -104,7 +110,6 @@ def generate_correlation_commentary(
     if not corr_matrix_data:
         return ""
 
-    # Find top positive and negative correlations
     pairs = []
     for cls, factors in corr_matrix_data.items():
         cls_name = class_labels.get(cls, cls)
@@ -134,9 +139,9 @@ MOEX и изменениями макро/рыночных факторов.
 
 Пиши на русском, кратко, профессионально. Укажи направление связи (прямая/обратная)."""
 
-    data_hash = _hash_data({"type": "correlation", "method": method,
+    cache_key = _hash_data({"type": "correlation", "method": method,
                              "pairs": [(c, f, round(v, 4)) for c, f, v in top_pairs]})
-    return _call_claude(prompt, data_hash)
+    return _call_claude(prompt, cache_key)
 
 
 def generate_regression_commentary(
@@ -152,7 +157,6 @@ def generate_regression_commentary(
     if not coefficients:
         return ""
 
-    # Build factor summary
     factors_info = []
     for k in sorted(coefficients.keys(), key=lambda k: abs(coefficients[k]), reverse=True):
         pv = pvalues.get(k, 1.0)
@@ -177,7 +181,7 @@ def generate_regression_commentary(
 
 Пиши на русском, кратко, профессионально. Дай практические выводы."""
 
-    data_hash = _hash_data({"type": "regression", "class": class_name,
+    cache_key = _hash_data({"type": "regression", "class": class_name,
                              "r2": round(r2, 4), "adj_r2": round(adj_r2, 4),
                              "coefficients": {k: round(v, 4) for k, v in coefficients.items()}})
-    return _call_claude(prompt, data_hash)
+    return _call_claude(prompt, cache_key)

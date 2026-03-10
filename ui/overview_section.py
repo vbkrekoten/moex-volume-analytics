@@ -62,14 +62,15 @@ def render_overview_section(
     total_period = filtered["value_rub"].sum()
 
     col1, col2, col3, col4 = st.columns(4)
+    # value_rub is in millions of RUB (MOEX ISS API default)
     col1.metric(
         "Оборот за день",
-        f"{total_latest / 1e9:,.1f} млрд",
+        f"{total_latest / 1e3:,.0f} млрд ₽",
         delta,
     )
     col2.metric(
         "Оборот за период",
-        f"{total_period / 1e12:,.1f} трлн",
+        f"{total_period / 1e6:,.1f} трлн ₽",
     )
     col3.metric("Самый активный", top_class_ru)
     col4.metric(

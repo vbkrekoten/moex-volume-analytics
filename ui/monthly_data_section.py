@@ -13,7 +13,7 @@ def render_monthly_data_section(
     daily_factors: pd.DataFrame,
     params: dict,
 ):
-    """Render monthly aggregated tables for turnovers and factors."""
+    """Render monthly aggregated table combining turnovers and factors."""
     st.markdown(
         '<div class="section-header">'
         '<h2>Помесячные данные</h2>'
@@ -26,43 +26,49 @@ def render_monthly_data_section(
         st.info("Нет данных для отображения.")
         return
 
-    # --- Turnovers table ---
     turnovers_monthly = _build_turnovers_monthly(daily_vol, params)
     factors_monthly = _build_factors_monthly(daily_factors, params)
 
-    tab_vol, tab_fac = st.tabs(["Обороты", "Факторы"])
+    if turnovers_monthly.empty and factors_monthly.empty:
+        st.info("Нет данных для выбранных параметров.")
+        return
 
-    with tab_vol:
-        if turnovers_monthly.empty:
-            st.info("Нет данных по оборотам для выбранных параметров.")
+    # Merge into one table: turnovers first, then factors
+    combined = _merge_tables(turnovers_monthly, factors_monthly)
+
+    if combined.empty:
+        st.info("Нет данных для выбранных параметров.")
+        return
+
+    # Reverse sort so latest month is on top
+    combined = combined.iloc[::-1]
+
+    # Build per-column format: turnovers as integers, factors as 2-decimal
+    turnover_cols = set(turnovers_monthly.columns) if not turnovers_monthly.empty else set()
+    fmt = {}
+    for col in combined.columns:
+        if col in turnover_cols:
+            fmt[col] = "{:,.0f}"
         else:
-            st.markdown("###### Обороты по классам инструментов (сумма за месяц, млн руб.)")
-            st.dataframe(
-                turnovers_monthly.style.format("{:,.0f}", na_rep="—"),
-                use_container_width=True,
-                height=min(600, 40 + len(turnovers_monthly) * 35),
-            )
+            fmt[col] = "{:,.2f}"
 
-    with tab_fac:
-        if factors_monthly.empty:
-            st.info("Нет данных по факторам для выбранных параметров.")
-        else:
-            st.markdown("###### Среднее значение фактора за месяц")
-            st.dataframe(
-                factors_monthly.style.format("{:,.2f}", na_rep="—"),
-                use_container_width=True,
-                height=min(600, 40 + len(factors_monthly) * 35),
-            )
+    st.markdown(
+        "###### Обороты (сумма, млн руб.) и факторы (среднее за месяц)"
+    )
+    st.dataframe(
+        combined.style.format(fmt, na_rep="—"),
+        use_container_width=True,
+        height=600,
+    )
 
-    # CSV download combining both tables
-    if not turnovers_monthly.empty or not factors_monthly.empty:
-        csv_data = _build_csv(turnovers_monthly, factors_monthly)
-        st.download_button(
-            label="📥 Скачать CSV",
-            data=csv_data,
-            file_name="moex_monthly_data.csv",
-            mime="text/csv",
-        )
+    # CSV download
+    csv_data = _build_csv(combined)
+    st.download_button(
+        label="📥 Скачать CSV",
+        data=csv_data,
+        file_name="moex_monthly_data.csv",
+        mime="text/csv",
+    )
 
 
 def _build_turnovers_monthly(daily_vol: pd.DataFrame, params: dict) -> pd.DataFrame:
@@ -96,8 +102,7 @@ def _build_turnovers_monthly(daily_vol: pd.DataFrame, params: dict) -> pd.DataFr
     # Rename columns to Russian
     pivot.columns = [CLASS_MAP_REVERSE.get(c, c) for c in pivot.columns]
     # Add total column
-    pivot["Итого"] = pivot.sum(axis=1)
-    # Convert period index to string for display
+    pivot["Итого оборот"] = pivot.sum(axis=1)
     pivot.index = pivot.index.astype(str)
     pivot.index.name = "Месяц"
     return pivot
@@ -138,14 +143,19 @@ def _build_factors_monthly(daily_factors: pd.DataFrame, params: dict) -> pd.Data
     return pivot
 
 
-def _build_csv(turnovers: pd.DataFrame, factors: pd.DataFrame) -> str:
-    """Combine turnovers and factors into a single CSV string."""
+def _merge_tables(turnovers: pd.DataFrame, factors: pd.DataFrame) -> pd.DataFrame:
+    """Merge turnovers and factors into one table by month index."""
+    if turnovers.empty and factors.empty:
+        return pd.DataFrame()
+    if turnovers.empty:
+        return factors
+    if factors.empty:
+        return turnovers
+    return pd.concat([turnovers, factors], axis=1)
+
+
+def _build_csv(combined: pd.DataFrame) -> str:
+    """Export combined table to CSV string."""
     buf = io.StringIO()
-    if not turnovers.empty:
-        buf.write("# Обороты (сумма за месяц, млн руб.)\n")
-        turnovers.to_csv(buf)
-        buf.write("\n")
-    if not factors.empty:
-        buf.write("# Факторы (среднее за месяц)\n")
-        factors.to_csv(buf)
+    combined.to_csv(buf)
     return buf.getvalue()

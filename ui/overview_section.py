@@ -63,13 +63,16 @@ def render_overview_section(
 
     col1, col2, col3, col4 = st.columns(4)
     # value_rub is in millions of RUB (MOEX ISS API default)
+    date_label = pd.to_datetime(latest_date).strftime("%d.%m.%Y")
     col1.metric(
-        "Оборот за день",
+        f"Оборот за {date_label}",
         f"{total_latest / 1e3:,.0f} млрд ₽",
         delta,
     )
+    d_from_lbl = pd.to_datetime(params["date_from"]).strftime("%m.%Y")
+    d_to_lbl = pd.to_datetime(params["date_to"]).strftime("%m.%Y")
     col2.metric(
-        "Оборот за период",
+        f"Оборот {d_from_lbl} – {d_to_lbl}",
         f"{total_period / 1e6:,.1f} трлн ₽",
     )
     col3.metric("Самый активный", top_class_ru)

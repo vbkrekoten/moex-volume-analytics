@@ -159,14 +159,10 @@ def combined_turnover_factor_chart(
                 yaxis="y",
             ))
 
-    # --- Factor lines on independent Y-axes ---
+    # --- Factor lines on independent Y-axes (all on RIGHT) ---
     factor_colors = ["#00d4ff", "#ff6b6b", "#51cf66", "#cc5de8", "#ffa94d"]
-    # Shrink x-axis domain to make room for factor axes
-    # Each side gets axes; allocate 0.06 per axis on each side
-    n_right = (n_factors + 1) // 2  # axes on right
-    n_left = n_factors // 2         # axes on left
-    domain_left = 0.06 * n_left
-    domain_right = 1 - 0.06 * n_right
+    # Shrink x-axis domain on right to make room for all factor axes
+    domain_right = 1 - 0.06 * n_factors
 
     if has_factors:
         for i, fname in enumerate(selected_factors):
@@ -225,32 +221,21 @@ def combined_turnover_factor_chart(
             zerolinecolor="rgba(255,255,255,0.06)",
             side="left",
         ),
-        # X-axis with domain shrunk for factor axes
+        # X-axis with domain shrunk on right for factor axes
         "xaxis": dict(
-            domain=[domain_left, domain_right] if n_factors > 0 else [0, 1],
+            domain=[0, domain_right] if n_factors > 0 else [0, 1],
             gridcolor="rgba(255,255,255,0.04)",
             zerolinecolor="rgba(255,255,255,0.06)",
         ),
     }
 
-    # Add independent Y-axes for each factor
+    # Add independent Y-axes for each factor (all on RIGHT side)
     if has_factors:
         for i in range(n_factors):
             axis_idx = i + 2
             color = factor_colors[i % len(factor_colors)]
             label = FACTORS.get(selected_factors[i], selected_factors[i])
-
-            # Alternate sides: even index → right, odd → left
-            if i % 2 == 0:
-                # Right side
-                side = "right"
-                right_pos = i // 2  # 0, 1, 2...
-                position = domain_right + 0.06 * right_pos
-            else:
-                # Left side
-                side = "left"
-                left_pos = (i - 1) // 2  # 0, 1, 2...
-                position = domain_left - 0.06 * left_pos - 0.06
+            position = domain_right + 0.06 * i
 
             axis_key = f"yaxis{axis_idx}"
             layout[axis_key] = dict(
@@ -258,9 +243,9 @@ def combined_turnover_factor_chart(
                 titlefont=dict(color=color, size=11),
                 tickfont=dict(color=color, size=10),
                 overlaying="y",
-                side=side,
+                side="right",
                 anchor="free",
-                position=max(0, min(1, position)),
+                position=min(1, position),
                 showgrid=False,
             )
 

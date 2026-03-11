@@ -272,12 +272,13 @@ def render_sidebar() -> dict:
 
     st.sidebar.header("Период")
     col1, col2 = st.sidebar.columns(2)
-    date_from = col1.date_input("С", value=date(2018, 1, 1), min_value=date(2018, 1, 1))
+    one_year_ago = date.today().replace(year=date.today().year - 1)
+    date_from = col1.date_input("С", value=one_year_ago, min_value=date(2018, 1, 1))
     date_to = col2.date_input("По", value=date.today())
 
     st.sidebar.header("Факторы")
     selected_factors = []
-    default_on = {"volatility", "index_level", "usd_rub", "brent", "key_rate"}
+    default_on = {"volatility"}
     for key, label in FACTORS.items():
         if st.sidebar.checkbox(label, value=(key in default_on), key=f"factor_{key}"):
             selected_factors.append(key)

@@ -80,22 +80,36 @@ def run_full_pipeline(progress_callback=None):
         if not turnovers_df.empty:
             upsert_rows(client, "vol_daily_turnovers", turnovers_df.to_dict("records"))
 
-    # --- Step 2: Index history ---
+    # --- Step 2: Index history (per-ticker to avoid skipping newly added tickers) ---
     update_progress("Загрузка индексов (IMOEX, RGBI, RVI)...", 0.25)
-    last_index = max_date(client, "vol_index_history")
-    index_from = (
-        datetime.strptime(last_index, "%Y-%m-%d").date() + timedelta(days=1)
-        if last_index
-        else DATE_FROM
-    )
-
-    if index_from <= date_to:
-        index_df = fetch_all_indices(
-            index_from, date_to, delay=0.1,
-            progress_callback=lambda p: update_progress("Загрузка индексов...", 0.25 + p * 0.15),
+    from data_pipeline.moex_indices import TICKERS as INDEX_TICKERS, fetch_index_history
+    index_frames = []
+    for t_i, ticker in enumerate(INDEX_TICKERS):
+        # Check max_date per ticker so new tickers get full backfill
+        resp = (
+            client.table("vol_index_history")
+            .select("trade_date")
+            .eq("ticker", ticker)
+            .order("trade_date", desc=True)
+            .limit(1)
+            .execute()
         )
-        if not index_df.empty:
-            upsert_rows(client, "vol_index_history", index_df.to_dict("records"))
+        last_ticker_date = resp.data[0]["trade_date"] if resp.data else None
+        ticker_from = (
+            datetime.strptime(last_ticker_date, "%Y-%m-%d").date() + timedelta(days=1)
+            if last_ticker_date
+            else DATE_FROM
+        )
+        if ticker_from <= date_to:
+            df = fetch_index_history(ticker, ticker_from, date_to, delay=0.1)
+            if not df.empty:
+                index_frames.append(df)
+        update_progress(
+            "Загрузка индексов...", 0.25 + (t_i + 1) / len(INDEX_TICKERS) * 0.15,
+        )
+    if index_frames:
+        index_df = pd.concat(index_frames, ignore_index=True)
+        upsert_rows(client, "vol_index_history", index_df.to_dict("records"))
 
     # --- Step 3: CBR exchange rates ---
     update_progress("Загрузка курсов валют (ЦБР)...", 0.40)

@@ -110,6 +110,22 @@ def _compute_rgbi_return(index_df: pd.DataFrame) -> pd.DataFrame:
     return _to_long(ret, "rgbi_return")
 
 
+def _compute_rvi(index_df: pd.DataFrame) -> pd.DataFrame:
+    """Daily RVI (implied volatility index) close level.
+
+    RVI is the Russian Volatility Index calculated by MOEX from IMOEX options.
+    Analogous to VIX for the US market. Reflects market expectations of
+    30-day forward volatility.
+    """
+    rvi = index_df[index_df["ticker"] == "RVI"].copy()
+    if rvi.empty:
+        return pd.DataFrame()
+    rvi["trade_date"] = pd.to_datetime(rvi["trade_date"])
+    s = rvi.set_index("trade_date")["close_val"].sort_index()
+    s = pd.to_numeric(s, errors="coerce").dropna()
+    return _to_long(s, "rvi")
+
+
 def _compute_currency_factors(currency_df: pd.DataFrame,
                               cal: pd.DatetimeIndex) -> pd.DataFrame:
     """USD/RUB and CNY/RUB daily rates, forward-filled to trading days."""
@@ -301,6 +317,7 @@ def compute_all_daily_factors(
         ("market_cap", lambda: _compute_market_cap(imoex)),
         ("imoex_return", lambda: _compute_imoex_return(imoex)),
         ("rgbi_return", lambda: _compute_rgbi_return(index_df)),
+        ("rvi", lambda: _compute_rvi(index_df)),
         ("usd_rub/cny_rub", lambda: _compute_currency_factors(currency_df, cal)),
         ("brent", lambda: _compute_brent(brent_df, cal)),
         ("macro", lambda: _compute_macro_daily(macro_df, cal)),

@@ -129,12 +129,13 @@ def combined_turnover_factor_chart(
     value_col: str = "value_rub",
     class_col: str = "instrument_class",
 ) -> go.Figure:
-    """Stacked area of turnovers with factor lines overlaid on secondary Y-axis."""
+    """Stacked area of turnovers with factor lines on independent Y-axes."""
     has_factors = bool(selected_factors) and not daily_factors.empty
+    n_factors = len(selected_factors) if has_factors else 0
 
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig = go.Figure()
 
-    # --- Stacked area: turnovers ---
+    # --- Stacked area: turnovers (primary y-axis) ---
     if not daily_vol.empty:
         pivot = daily_vol.pivot_table(
             index=date_col, columns=class_col,
@@ -146,23 +147,28 @@ def combined_turnover_factor_chart(
 
         for i, col in enumerate(pivot.columns):
             color = COLORS[i % len(COLORS)]
-            fig.add_trace(
-                go.Scatter(
-                    x=pivot.index, y=pivot[col],
-                    name=col,
-                    stackgroup="one",
-                    line=dict(color=color, width=0.5),
-                    fillcolor=_hex_to_rgba(color, 0.4),
-                    hovertemplate="%{y:,.0f}<extra>%{fullData.name}</extra>",
-                    legendgroup="turnovers",
-                    legendgrouptitle_text="Обороты",
-                ),
-                secondary_y=False,
-            )
+            fig.add_trace(go.Scatter(
+                x=pivot.index, y=pivot[col],
+                name=col,
+                stackgroup="one",
+                line=dict(color=color, width=0.5),
+                fillcolor=_hex_to_rgba(color, 0.4),
+                hovertemplate="%{y:,.0f}<extra>%{fullData.name}</extra>",
+                legendgroup="turnovers",
+                legendgrouptitle_text="Обороты",
+                yaxis="y",
+            ))
 
-    # --- Factor lines on secondary Y ---
+    # --- Factor lines on independent Y-axes ---
+    factor_colors = ["#00d4ff", "#ff6b6b", "#51cf66", "#cc5de8", "#ffa94d"]
+    # Shrink x-axis domain to make room for factor axes
+    # Each side gets axes; allocate 0.06 per axis on each side
+    n_right = (n_factors + 1) // 2  # axes on right
+    n_left = n_factors // 2         # axes on left
+    domain_left = 0.06 * n_left
+    domain_right = 1 - 0.06 * n_right
+
     if has_factors:
-        factor_colors = ["#00d4ff", "#ff6b6b", "#51cf66", "#cc5de8", "#ffa94d"]
         for i, fname in enumerate(selected_factors):
             fdata = daily_factors[daily_factors["factor_name"] == fname].copy()
             if fdata.empty:
@@ -171,22 +177,33 @@ def combined_turnover_factor_chart(
             fdata = fdata.sort_values(date_col)
             color = factor_colors[i % len(factor_colors)]
             label = FACTORS.get(fname, fname)
-            fig.add_trace(
-                go.Scatter(
-                    x=fdata[date_col], y=fdata["value"],
-                    name=label,
-                    line=dict(color=color, width=2, dash="dot"),
-                    hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>",
-                    legendgroup="factors",
-                    legendgrouptitle_text="Факторы",
-                ),
-                secondary_y=True,
-            )
+            axis_idx = i + 2  # y2, y3, y4...
+            yaxis_name = f"y{axis_idx}"
 
-    layout_overrides = {
-        **DARK_LAYOUT,
+            fig.add_trace(go.Scatter(
+                x=fdata[date_col], y=fdata["value"],
+                name=label,
+                line=dict(color=color, width=2, dash="dot"),
+                hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>",
+                legendgroup="factors",
+                legendgrouptitle_text="Факторы",
+                yaxis=yaxis_name,
+            ))
+
+    # --- Build layout ---
+    layout = {
+        "template": "plotly_dark",
+        "paper_bgcolor": "rgba(10, 14, 23, 0.0)",
+        "plot_bgcolor": "rgba(17, 24, 39, 0.35)",
+        "font": dict(color="#e5e7eb", family="Inter, -apple-system, sans-serif", size=12),
         "hovermode": "x unified",
-        "height": 450,
+        "height": 480,
+        "hoverlabel": dict(
+            bgcolor="rgba(17,24,39,0.92)",
+            bordercolor="rgba(240,180,41,0.25)",
+            font_color="#e5e7eb",
+            font_size=12,
+        ),
         "legend": dict(
             bgcolor="rgba(17,24,39,0.7)",
             bordercolor="rgba(240,180,41,0.1)",
@@ -198,12 +215,56 @@ def combined_turnover_factor_chart(
             xanchor="left",
             x=0,
         ),
+        "margin": dict(l=50, r=50, t=45, b=35),
+        # Primary y-axis: turnovers
+        "yaxis": dict(
+            title="Оборот, млн руб.",
+            titlefont=dict(color="#f0b429"),
+            tickfont=dict(color="#f0b429"),
+            gridcolor="rgba(255,255,255,0.04)",
+            zerolinecolor="rgba(255,255,255,0.06)",
+            side="left",
+        ),
+        # X-axis with domain shrunk for factor axes
+        "xaxis": dict(
+            domain=[domain_left, domain_right] if n_factors > 0 else [0, 1],
+            gridcolor="rgba(255,255,255,0.04)",
+            zerolinecolor="rgba(255,255,255,0.06)",
+        ),
     }
-    fig.update_layout(**layout_overrides)
-    fig.update_yaxes(title_text="Оборот, млн руб.", secondary_y=False)
-    if has_factors:
-        fig.update_yaxes(title_text="Значение фактора", secondary_y=True)
 
+    # Add independent Y-axes for each factor
+    if has_factors:
+        for i in range(n_factors):
+            axis_idx = i + 2
+            color = factor_colors[i % len(factor_colors)]
+            label = FACTORS.get(selected_factors[i], selected_factors[i])
+
+            # Alternate sides: even index → right, odd → left
+            if i % 2 == 0:
+                # Right side
+                side = "right"
+                right_pos = i // 2  # 0, 1, 2...
+                position = domain_right + 0.06 * right_pos
+            else:
+                # Left side
+                side = "left"
+                left_pos = (i - 1) // 2  # 0, 1, 2...
+                position = domain_left - 0.06 * left_pos - 0.06
+
+            axis_key = f"yaxis{axis_idx}"
+            layout[axis_key] = dict(
+                title=label,
+                titlefont=dict(color=color, size=11),
+                tickfont=dict(color=color, size=10),
+                overlaying="y",
+                side=side,
+                anchor="free",
+                position=max(0, min(1, position)),
+                showgrid=False,
+            )
+
+    fig.update_layout(**layout)
     return fig
 
 

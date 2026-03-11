@@ -18,6 +18,7 @@ from ui.styles import load_custom_css
 from ui.sidebar import render_sidebar
 from ui.overview_section import render_overview_section
 from ui.analysis_section import render_analysis_section
+from ui.monthly_data_section import render_monthly_data_section
 from ui.data_tab import render_data_section
 
 st.set_page_config(
@@ -116,5 +117,10 @@ render_analysis_section(daily_vol, daily_factors, params)
 
 st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
-# Section 3: Data Health
+# Section 3: Monthly Data
+render_monthly_data_section(daily_vol, daily_factors, params)
+
+st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+
+# Section 4: Data Health
 render_data_section()

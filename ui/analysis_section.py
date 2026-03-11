@@ -282,22 +282,34 @@ def _render_correlation_block(
     """Correlation heatmap + rolling correlation explorer."""
     st.markdown("##### Корреляция оборотов с факторами")
 
-    # Term tooltips for correlation section
-    _render_term_tooltips_row(["correlation", "pearson", "spearman", "pct_change"])
+    # Business-friendly explanation
+    st.markdown(
+        '<div class="glass-card" style="border-left: 3px solid #00d4ff; padding: 0.8rem 1rem;">'
+        '<div style="font-size: 0.92rem; color: #d1d5db; line-height: 1.6;">'
+        '<b>Как читать корреляцию:</b><br>'
+        '• <span style="color:#51cf66;"><b>+1</b></span> — показатели растут вместе<br>'
+        '• <span style="color:#ff6b6b;"><b>−1</b></span> — движутся в противоположных направлениях<br>'
+        '• <span style="color:#6b7280;"><b>0</b></span> — связи нет'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
 
+    # Controls: method + period presets
     c1, c2 = st.columns([1, 1])
     with c1:
         method = st.radio(
-            "Метод", ["Pearson", "Spearman"],
+            "Метод", ["Spearman", "Pearson"],
             horizontal=True, key="corr_method",
+            help="Spearman — устойчив к выбросам, Pearson — классический линейный",
         )
     with c2:
-        window = st.select_slider(
-            "Окно скол. корр. (дни)",
-            options=[30, 60, 90, 120, 180, 252],
-            value=90,
-            key="corr_window",
+        period_label = st.radio(
+            "Период скользящей корреляции",
+            ["3 месяца", "6 месяцев", "1 год"],
+            horizontal=True,
+            key="corr_period",
         )
+        window = {"3 месяца": 63, "6 месяцев": 126, "1 год": 252}[period_label]
 
     # Heatmap
     corr_matrix = compute_correlation_matrix(
@@ -320,7 +332,14 @@ def _render_correlation_block(
 
     # Rolling correlation explorer
     st.markdown("##### Скользящая корреляция")
-    _render_term_tooltips_row(["rolling_correlation"])
+    st.markdown(
+        '<div class="glass-card" style="border-left: 3px solid #ffa94d; padding: 0.8rem 1rem;">'
+        '<div style="font-size: 0.85rem; color: #d1d5db; line-height: 1.55;">'
+        'Показывает <b>стабильность связи</b> между оборотом и фактором во времени. '
+        'Если линия «прыгает» — связь ненадёжная и на неё нельзя опираться в прогнозах.'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
     c1, c2 = st.columns(2)
     with c1:
         vol_class = st.selectbox(

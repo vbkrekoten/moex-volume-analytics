@@ -41,15 +41,18 @@ def render_overview_section(
     latest_data = filtered[filtered["trade_date"] == latest_date]
     total_latest = latest_data["value_rub"].sum()
 
-    # Previous trading day
+    # Previous trading day — absolute change in billions
     prev_dates = filtered[filtered["trade_date"] < latest_date]["trade_date"].unique()
     delta = None
+    delta_help = None
     if len(prev_dates) > 0:
         prev_date = sorted(prev_dates)[-1]
         prev_data = filtered[filtered["trade_date"] == prev_date]
         total_prev = prev_data["value_rub"].sum()
         if total_prev > 0:
-            delta = f"{(total_latest / total_prev - 1) * 100:+.1f}%"
+            diff_bln = (total_latest - total_prev) / 1e3
+            prev_label = pd.to_datetime(prev_date).strftime("%d.%m")
+            delta = f"{diff_bln:+,.0f} млрд к {prev_label}"
 
     # Most active class
     if not latest_data.empty:

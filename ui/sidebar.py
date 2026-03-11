@@ -257,6 +257,10 @@ TERM_DESCRIPTIONS = {
 }
 
 
+# Short unit labels derived from FACTOR_DESCRIPTIONS
+FACTOR_UNITS = {k: v.get("unit", "") for k, v in FACTOR_DESCRIPTIONS.items()}
+
+
 def render_sidebar() -> dict:
     """Render sidebar controls and return selected parameters."""
     st.sidebar.header("Инструменты")

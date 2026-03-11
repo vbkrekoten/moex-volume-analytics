@@ -5,7 +5,7 @@ import io
 import streamlit as st
 import pandas as pd
 
-from ui.sidebar import CLASS_MAP_REVERSE, FACTORS
+from ui.sidebar import CLASS_MAP_REVERSE, FACTORS, FACTOR_UNITS
 
 
 def render_monthly_data_section(
@@ -99,10 +99,10 @@ def _build_turnovers_monthly(daily_vol: pd.DataFrame, params: dict) -> pd.DataFr
         aggfunc="sum",
     ).sort_index()
 
-    # Rename columns to Russian
-    pivot.columns = [CLASS_MAP_REVERSE.get(c, c) for c in pivot.columns]
+    # Rename columns to Russian with unit
+    pivot.columns = [f"{CLASS_MAP_REVERSE.get(c, c)}, млн ₽" for c in pivot.columns]
     # Add total column
-    pivot["Итого оборот"] = pivot.sum(axis=1)
+    pivot["Итого, млн ₽"] = pivot.sum(axis=1)
     pivot.index = pivot.index.astype(str)
     pivot.index.name = "Месяц"
     return pivot
@@ -136,8 +136,13 @@ def _build_factors_monthly(daily_factors: pd.DataFrame, params: dict) -> pd.Data
         aggfunc="mean",
     ).sort_index()
 
-    # Rename columns to Russian
-    pivot.columns = [FACTORS.get(c, c) for c in pivot.columns]
+    # Rename columns to Russian with units
+    def _factor_col_label(fname):
+        label = FACTORS.get(fname, fname)
+        unit = FACTOR_UNITS.get(fname, "")
+        return f"{label}, {unit}" if unit else label
+
+    pivot.columns = [_factor_col_label(c) for c in pivot.columns]
     pivot.index = pivot.index.astype(str)
     pivot.index.name = "Месяц"
     return pivot

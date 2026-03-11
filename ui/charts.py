@@ -5,7 +5,7 @@ from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 
-from ui.sidebar import CLASS_MAP_REVERSE, FACTORS
+from ui.sidebar import CLASS_MAP_REVERSE, FACTORS, FACTOR_UNITS
 
 # Color palette
 COLORS = [
@@ -173,6 +173,8 @@ def combined_turnover_factor_chart(
             fdata = fdata.sort_values(date_col)
             color = factor_colors[i % len(factor_colors)]
             label = FACTORS.get(fname, fname)
+            unit = FACTOR_UNITS.get(fname, "")
+            unit_suffix = f" {unit}" if unit else ""
             axis_idx = i + 2  # y2, y3, y4...
             yaxis_name = f"y{axis_idx}"
 
@@ -180,7 +182,7 @@ def combined_turnover_factor_chart(
                 x=fdata[date_col], y=fdata["value"],
                 name=label,
                 line=dict(color=color, width=2, dash="dot"),
-                hovertemplate="%{y:.2f}<extra>%{fullData.name}</extra>",
+                hovertemplate="%{y:.2f}" + unit_suffix + "<extra>%{fullData.name}</extra>",
                 legendgroup="factors",
                 legendgrouptitle_text="Факторы",
                 yaxis=yaxis_name,
@@ -234,12 +236,15 @@ def combined_turnover_factor_chart(
         for i in range(n_factors):
             axis_idx = i + 2
             color = factor_colors[i % len(factor_colors)]
-            label = FACTORS.get(selected_factors[i], selected_factors[i])
+            fname_i = selected_factors[i]
+            label = FACTORS.get(fname_i, fname_i)
+            unit = FACTOR_UNITS.get(fname_i, "")
+            axis_title = f"{label}, {unit}" if unit else label
             position = domain_right + 0.06 * i
 
             axis_key = f"yaxis{axis_idx}"
             layout[axis_key] = dict(
-                title=label,
+                title=axis_title,
                 titlefont=dict(color=color, size=11),
                 tickfont=dict(color=color, size=10),
                 overlaying="y",
@@ -508,8 +513,9 @@ def dual_axis_chart(
     )
 
     fig.update_layout(**DARK_LAYOUT, hovermode="x unified", height=350)
-    fig.update_yaxes(title_text=f"Оборот ({vol_name})", secondary_y=False)
-    fig.update_yaxes(
-        title_text=FACTORS.get(factor_name, factor_name), secondary_y=True,
-    )
+    fig.update_yaxes(title_text=f"Оборот ({vol_name}), млн руб.", secondary_y=False)
+    unit = FACTOR_UNITS.get(factor_name, "")
+    fac_label = FACTORS.get(factor_name, factor_name)
+    fac_title = f"{fac_label}, {unit}" if unit else fac_label
+    fig.update_yaxes(title_text=fac_title, secondary_y=True)
     return fig

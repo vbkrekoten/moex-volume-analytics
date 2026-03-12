@@ -211,6 +211,7 @@ def combined_turnover_factor_chart(
                 hovertemplate="%{y:,.0f}<extra>ADTV %{fullData.name}</extra>",
                 legendgroup="adtv",
                 legendgrouptitle_text="ADTV (30д)",
+                xaxis="x2",
                 yaxis=adtv_yaxis_name,
             ))
 
@@ -249,12 +250,22 @@ def combined_turnover_factor_chart(
             zerolinecolor="rgba(255,255,255,0.06)",
             side="left",
             domain=top_domain,
+            anchor="x",
         ),
         # X-axis shared, domain shrunk for factor axes
         "xaxis": dict(
             domain=[0, domain_right] if n_factors > 0 else [0, 1],
             gridcolor="rgba(255,255,255,0.04)",
             zerolinecolor="rgba(255,255,255,0.06)",
+        ),
+        # X-axis for ADTV bottom zone (paired with ADTV y-axis)
+        "xaxis2": dict(
+            domain=[0, domain_right] if n_factors > 0 else [0, 1],
+            gridcolor="rgba(255,255,255,0.04)",
+            zerolinecolor="rgba(255,255,255,0.06)",
+            matches="x",
+            anchor=f"y{adtv_axis_idx}",
+            showticklabels=False,
         ),
         # ADTV y-axis (bottom zone)
         f"yaxis{adtv_axis_idx}": dict(
@@ -265,6 +276,7 @@ def combined_turnover_factor_chart(
             zerolinecolor="rgba(255,255,255,0.06)",
             side="left",
             domain=adtv_domain,
+            anchor="x2",
         ),
     }
 

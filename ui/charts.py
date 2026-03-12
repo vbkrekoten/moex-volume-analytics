@@ -129,13 +129,19 @@ def combined_turnover_factor_chart(
     value_col: str = "value_rub",
     class_col: str = "instrument_class",
 ) -> go.Figure:
-    """Stacked area of turnovers with factor lines on independent Y-axes."""
+    """Stacked area of turnovers with factor lines + ADTV subplot below."""
     has_factors = bool(selected_factors) and not daily_factors.empty
     n_factors = len(selected_factors) if has_factors else 0
 
     fig = go.Figure()
 
-    # --- Stacked area: turnovers (primary y-axis) ---
+    # Y-domain split: top = turnovers + factors, bottom = ADTV
+    top_domain = [0.28, 1.0]
+    adtv_domain = [0, 0.22]
+
+    pivot = pd.DataFrame()
+
+    # --- Stacked area: turnovers (primary y-axis, top zone) ---
     if not daily_vol.empty:
         pivot = daily_vol.pivot_table(
             index=date_col, columns=class_col,
@@ -188,6 +194,26 @@ def combined_turnover_factor_chart(
                 yaxis=yaxis_name,
             ))
 
+    # --- ADTV subplot (bottom zone) ---
+    # ADTV axis index is after all factor axes
+    adtv_axis_idx = n_factors + 2  # e.g., if 3 factors → y2,y3,y4 used, ADTV = y5
+    adtv_yaxis_name = f"y{adtv_axis_idx}"
+
+    if not pivot.empty:
+        adtv_window = 30
+        for i, col in enumerate(pivot.columns):
+            adtv = pivot[col].rolling(window=adtv_window, min_periods=1).mean()
+            color = COLORS[i % len(COLORS)]
+            fig.add_trace(go.Scatter(
+                x=pivot.index, y=adtv,
+                name=f"ADTV {col}",
+                line=dict(color=color, width=1.5),
+                hovertemplate="%{y:,.0f}<extra>ADTV %{fullData.name}</extra>",
+                legendgroup="adtv",
+                legendgrouptitle_text="ADTV (30д)",
+                yaxis=adtv_yaxis_name,
+            ))
+
     # --- Build layout ---
     layout = {
         "template": "plotly_dark",
@@ -195,7 +221,7 @@ def combined_turnover_factor_chart(
         "plot_bgcolor": "rgba(17, 24, 39, 0.35)",
         "font": dict(color="#e5e7eb", family="Inter, -apple-system, sans-serif", size=12),
         "hovermode": "x unified",
-        "height": 480,
+        "height": 600,
         "hoverlabel": dict(
             bgcolor="rgba(17,24,39,0.92)",
             bordercolor="rgba(240,180,41,0.25)",
@@ -214,7 +240,7 @@ def combined_turnover_factor_chart(
             x=0,
         ),
         "margin": dict(l=50, r=50, t=45, b=35),
-        # Primary y-axis: turnovers
+        # Primary y-axis: turnovers (top zone)
         "yaxis": dict(
             title="Оборот, млн руб.",
             titlefont=dict(color="#f0b429"),
@@ -222,16 +248,27 @@ def combined_turnover_factor_chart(
             gridcolor="rgba(255,255,255,0.04)",
             zerolinecolor="rgba(255,255,255,0.06)",
             side="left",
+            domain=top_domain,
         ),
-        # X-axis with domain shrunk on right for factor axes
+        # X-axis shared, domain shrunk for factor axes
         "xaxis": dict(
             domain=[0, domain_right] if n_factors > 0 else [0, 1],
             gridcolor="rgba(255,255,255,0.04)",
             zerolinecolor="rgba(255,255,255,0.06)",
         ),
+        # ADTV y-axis (bottom zone)
+        f"yaxis{adtv_axis_idx}": dict(
+            title="ADTV 30д, млн руб.",
+            titlefont=dict(color="#74c0fc", size=11),
+            tickfont=dict(color="#74c0fc", size=10),
+            gridcolor="rgba(255,255,255,0.04)",
+            zerolinecolor="rgba(255,255,255,0.06)",
+            side="left",
+            domain=adtv_domain,
+        ),
     }
 
-    # Add independent Y-axes for each factor (all on RIGHT side)
+    # Add independent Y-axes for each factor (all on RIGHT side, top zone)
     if has_factors:
         for i in range(n_factors):
             axis_idx = i + 2

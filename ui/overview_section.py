@@ -7,6 +7,36 @@ from ui.charts import combined_turnover_factor_chart, stacked_area_chart
 from ui.sidebar import CLASS_MAP_REVERSE, FACTORS
 
 
+def _render_adtv_cards(filtered: pd.DataFrame):
+    """Render ADTV (30-day rolling average) cards for each instrument class."""
+    if filtered.empty:
+        return
+    filtered = filtered.copy()
+    filtered["trade_date"] = pd.to_datetime(filtered["trade_date"])
+    pivot = filtered.pivot_table(
+        index="trade_date", columns="instrument_class",
+        values="value_rub", aggfunc="sum", fill_value=0,
+    ).sort_index()
+    if pivot.empty:
+        return
+
+    adtv = pivot.rolling(window=30, min_periods=1).mean().iloc[-1]
+
+    classes = list(pivot.columns)
+    n = len(classes)
+    if n == 0:
+        return
+    cols = st.columns(min(n, 6))
+    for i, cls in enumerate(classes):
+        val = adtv.get(cls, 0)
+        label_ru = CLASS_MAP_REVERSE.get(cls, cls)
+        with cols[i % len(cols)]:
+            st.metric(
+                f"ADTV 30д: {label_ru}",
+                f"{val / 1e3:,.1f} млрд ₽",
+            )
+
+
 def render_overview_section(
     daily_vol: pd.DataFrame,
     daily_factors: pd.DataFrame,
@@ -83,6 +113,9 @@ def render_overview_section(
         "Классов",
         len(filtered["instrument_class"].unique()),
     )
+
+    # --- ADTV cards per class ---
+    _render_adtv_cards(filtered)
 
     # --- Combined chart: turnovers + factors ---
     st.markdown("")

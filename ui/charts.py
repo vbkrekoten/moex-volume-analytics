@@ -202,13 +202,13 @@ def combined_turnover_factor_chart(
     if not pivot.empty:
         adtv_window = 30
         for i, col in enumerate(pivot.columns):
-            adtv = pivot[col].rolling(window=adtv_window, min_periods=1).mean()
+            adtv = pivot[col].rolling(window=adtv_window, min_periods=1).mean() / 1e3  # млн → млрд
             color = COLORS[i % len(COLORS)]
             fig.add_trace(go.Scatter(
                 x=pivot.index, y=adtv,
                 name=f"ADTV {col}",
                 line=dict(color=color, width=1.5),
-                hovertemplate="%{y:,.0f}<extra>ADTV %{fullData.name}</extra>",
+                hovertemplate="%{y:,.1f} млрд ₽<extra>ADTV %{fullData.name}</extra>",
                 legendgroup="adtv",
                 legendgrouptitle_text="ADTV (30д)",
                 xaxis="x2",
@@ -269,7 +269,7 @@ def combined_turnover_factor_chart(
         ),
         # ADTV y-axis (bottom zone)
         f"yaxis{adtv_axis_idx}": dict(
-            title="ADTV 30д, млн руб.",
+            title="ADTV 30д, млрд ₽",
             titlefont=dict(color="#74c0fc", size=11),
             tickfont=dict(color="#74c0fc", size=10),
             gridcolor="rgba(255,255,255,0.04)",

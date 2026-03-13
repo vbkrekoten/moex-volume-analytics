@@ -21,6 +21,7 @@ from data_pipeline.moex_intraday import fetch_intraday_candles, compute_realized
 from data_pipeline.aggregator import to_weekly_volumes, forward_fill_monthly_to_weekly
 from analytics.factors import compute_index_factors, compute_currency_factors
 from analytics.daily_factors import compute_all_daily_factors
+from analytics.forecast_pipeline import run_forecast_pipeline
 
 
 DATE_FROM = date(2018, 1, 1)
@@ -247,6 +248,20 @@ def run_full_pipeline(progress_callback=None):
     )
     if not daily_factors.empty:
         upsert_rows(client, "vol_daily_factors", daily_factors.to_dict("records"))
+
+    # --- Step 9: Generate volatility forecasts ---
+    update_progress("Генерация прогнозов волатильности (HAR-RV)...", 0.92)
+    try:
+        # Use all daily factors from DB for the fullest history
+        all_daily_factors = fetch_all_rows(client, "vol_daily_factors")
+        run_forecast_pipeline(
+            client,
+            daily_factors_df=all_daily_factors,
+            progress_callback=progress_callback,
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Forecast pipeline failed: %s", e)
 
     update_progress("Готово!", 1.0)
 

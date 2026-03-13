@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install supabase requests apimoex python-dotenv pandas numpy openpyxl
+          pip install supabase requests apimoex python-dotenv pandas numpy openpyxl statsmodels scipy
 
       - name: Run incremental pipeline
         env:

@@ -128,6 +128,7 @@ def combined_turnover_factor_chart(
     date_col: str = "trade_date",
     value_col: str = "value_rub",
     class_col: str = "instrument_class",
+    adtv_window: int = 30,
 ) -> go.Figure:
     """Stacked area of turnovers with factor lines + ADTV subplot below."""
     has_factors = bool(selected_factors) and not daily_factors.empty
@@ -200,17 +201,19 @@ def combined_turnover_factor_chart(
     adtv_yaxis_name = f"y{adtv_axis_idx}"
 
     if not pivot.empty:
-        adtv_window = 30
+        is_weekly = adtv_window < 10  # heuristic: weekly uses window=4
+        avg_label = "AWTV" if is_weekly else "ADTV"
+        period_label = f"{adtv_window}нед" if is_weekly else f"{adtv_window}д"
         for i, col in enumerate(pivot.columns):
             adtv = pivot[col].rolling(window=adtv_window, min_periods=1).mean() / 1e3  # млн → млрд
             color = COLORS[i % len(COLORS)]
             fig.add_trace(go.Scatter(
                 x=pivot.index, y=adtv,
-                name=f"ADTV {col}",
+                name=f"{avg_label} {col}",
                 line=dict(color=color, width=1.5),
-                hovertemplate="%{y:,.1f} млрд ₽<extra>ADTV %{fullData.name}</extra>",
+                hovertemplate="%{y:,.1f} млрд ₽<extra>" + avg_label + " %{fullData.name}</extra>",
                 legendgroup="adtv",
-                legendgrouptitle_text="ADTV (30д)",
+                legendgrouptitle_text=f"{avg_label} ({period_label})",
                 xaxis="x2",
                 yaxis=adtv_yaxis_name,
             ))
@@ -269,7 +272,7 @@ def combined_turnover_factor_chart(
         ),
         # ADTV y-axis (bottom zone)
         f"yaxis{adtv_axis_idx}": dict(
-            title="ADTV 30д, млрд ₽",
+            title=f"{'AWTV' if adtv_window < 10 else 'ADTV'} {adtv_window}{'нед' if adtv_window < 10 else 'д'}, млрд ₽",
             titlefont=dict(color="#74c0fc", size=11),
             tickfont=dict(color="#74c0fc", size=10),
             gridcolor="rgba(255,255,255,0.04)",

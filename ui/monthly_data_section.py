@@ -14,10 +14,12 @@ def render_monthly_data_section(
     params: dict,
 ):
     """Render monthly aggregated table combining turnovers and factors."""
+    is_weekly = params.get("frequency") == "weekly"
+    source_label = "недельным" if is_weekly else "дневным"
     st.markdown(
         '<div class="section-header">'
         '<h2>Помесячные данные</h2>'
-        '<p>Числовые значения оборотов и факторов в месячном разрезе</p>'
+        f'<p>Числовые значения оборотов и факторов в месячном разрезе (по {source_label} данным)</p>'
         '</div>',
         unsafe_allow_html=True,
     )

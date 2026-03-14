@@ -114,10 +114,12 @@ def render_analysis_section(
     params: dict,
 ):
     """Render the unified factor analysis section."""
+    is_weekly = params.get("frequency") == "weekly"
+    freq_label = "недельным" if is_weekly else "дневным"
     st.markdown(
         '<div class="section-header">'
         '<h2>Факторный анализ</h2>'
-        '<p>Оценка влияния макро- и рыночных факторов на торговые обороты</p>'
+        f'<p>Оценка влияния макро- и рыночных факторов на торговые обороты (по {freq_label} данным)</p>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -183,8 +185,9 @@ def _render_factor_summary(
     vol_series = vol_wide[selected_class]
 
     # Compute stability metrics
+    stab_window = 24 if params.get("frequency") == "weekly" else 120
     with st.spinner("Вычисление метрик..."):
-        stability_df = compute_factor_stability(vol_series, fac_wide, window=120)
+        stability_df = compute_factor_stability(vol_series, fac_wide, window=stab_window)
 
     if stability_df.empty:
         st.info("Недостаточно данных для расчёта метрик стабильности.")
@@ -309,7 +312,10 @@ def _render_correlation_block(
             horizontal=True,
             key="corr_period",
         )
-        window = {"3 месяца": 63, "6 месяцев": 126, "1 год": 252}[period_label]
+        if params.get("frequency") == "weekly":
+            window = {"3 месяца": 13, "6 месяцев": 26, "1 год": 52}[period_label]
+        else:
+            window = {"3 месяца": 63, "6 месяцев": 126, "1 год": 252}[period_label]
 
     # Heatmap
     corr_matrix = compute_correlation_matrix(
@@ -445,7 +451,8 @@ def _render_regression_block(
 
     # Rolling R² stability
     with st.expander("Стабильность модели (Rolling R²)", expanded=False):
-        rolling_df = rolling_regression_r2(vol_series, fac_wide, window=120)
+        reg_window = 24 if params.get("frequency") == "weekly" else 120
+        rolling_df = rolling_regression_r2(vol_series, fac_wide, window=reg_window)
         if not rolling_df.empty:
             label = CLASS_MAP_REVERSE.get(sel_class, sel_class)
             fig = rolling_r2_chart(rolling_df, f"Rolling R² ({label})")

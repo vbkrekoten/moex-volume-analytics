@@ -7,8 +7,8 @@ from ui.charts import combined_turnover_factor_chart, stacked_area_chart
 from ui.sidebar import CLASS_MAP_REVERSE, FACTORS
 
 
-def _render_adtv_cards(filtered: pd.DataFrame):
-    """Render ADTV (30-day rolling average) cards for each instrument class."""
+def _render_adtv_cards(filtered: pd.DataFrame, is_weekly: bool = False):
+    """Render ADTV/AWTV rolling average cards for each instrument class."""
     if filtered.empty:
         return
     filtered = filtered.copy()
@@ -20,7 +20,11 @@ def _render_adtv_cards(filtered: pd.DataFrame):
     if pivot.empty:
         return
 
-    adtv = pivot.rolling(window=30, min_periods=1).mean().iloc[-1]
+    window = 4 if is_weekly else 30
+    period_label = "4нед" if is_weekly else "30д"
+    avg_label = "AWTV" if is_weekly else "ADTV"
+
+    avg_vol = pivot.rolling(window=window, min_periods=1).mean().iloc[-1]
 
     classes = list(pivot.columns)
     n = len(classes)
@@ -28,11 +32,11 @@ def _render_adtv_cards(filtered: pd.DataFrame):
         return
     cols = st.columns(min(n, 6))
     for i, cls in enumerate(classes):
-        val = adtv.get(cls, 0)
+        val = avg_vol.get(cls, 0)
         label_ru = CLASS_MAP_REVERSE.get(cls, cls)
         with cols[i % len(cols)]:
             st.metric(
-                f"ADTV 30д: {label_ru}",
+                f"{avg_label} {period_label}: {label_ru}",
                 f"{val / 1e3:,.1f} млрд ₽",
             )
 
@@ -43,10 +47,13 @@ def render_overview_section(
     params: dict,
 ):
     """Render the overview section with turnovers + factor overlay."""
+    is_weekly = params.get("frequency") == "weekly"
+    freq_label = "Недельные" if is_weekly else "Дневные"
+
     st.markdown(
         '<div class="section-header">'
         '<h2>Обзор торговых оборотов</h2>'
-        '<p>Дневные обороты по классам инструментов MOEX с 2018 года</p>'
+        f'<p>{freq_label} обороты по классам инструментов MOEX с 2018 года</p>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -97,8 +104,9 @@ def render_overview_section(
     col1, col2, col3, col4 = st.columns(4)
     # value_rub is in millions of RUB (MOEX ISS API default)
     date_label = pd.to_datetime(latest_date).strftime("%d.%m.%Y")
+    period_word = "неделю" if is_weekly else "день"
     col1.metric(
-        f"Оборот за {date_label}",
+        f"Оборот за {period_word} ({date_label})",
         f"{total_latest / 1e3:,.0f} млрд ₽",
         delta,
     )
@@ -114,8 +122,8 @@ def render_overview_section(
         len(filtered["instrument_class"].unique()),
     )
 
-    # --- ADTV cards per class ---
-    _render_adtv_cards(filtered)
+    # --- ADTV/AWTV cards per class ---
+    _render_adtv_cards(filtered, is_weekly=is_weekly)
 
     # --- Combined chart: turnovers + factors ---
     st.markdown("")
@@ -147,6 +155,7 @@ def render_overview_section(
     elif overlay_factors:
         fig = combined_turnover_factor_chart(
             filtered, filt_factors, overlay_factors,
+            adtv_window=4 if is_weekly else 30,
         )
     else:
         fig = stacked_area_chart(filtered, pct_mode=False)

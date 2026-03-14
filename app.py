@@ -101,29 +101,72 @@ def load_daily_factors() -> pd.DataFrame:
     return df
 
 
-# Load data
+# Load data (always daily — weekly is aggregated on-the-fly)
 daily_vol = load_daily_turnovers()
 daily_factors = load_daily_factors()
+
+
+# --- Aggregate to weekly if needed ---
+def _to_weekly_vol(df: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate daily turnovers to weekly (sum per ISO week)."""
+    if df.empty:
+        return df
+    out = df.copy()
+    out["trade_date"] = pd.to_datetime(out["trade_date"])
+    out["week_start"] = (
+        out["trade_date"] - pd.to_timedelta(out["trade_date"].dt.dayofweek, unit="D")
+    )
+    result = (
+        out.groupby(["week_start", "instrument_class"])
+        .agg(value_rub=("value_rub", "sum"), num_trades=("num_trades", "sum"))
+        .reset_index()
+    )
+    result["trade_date"] = result["week_start"].dt.strftime("%Y-%m-%d")
+    return result.drop(columns=["week_start"])
+
+
+def _to_weekly_factors(df: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate daily factors to weekly (last value per ISO week)."""
+    if df.empty:
+        return df
+    out = df.copy()
+    out["trade_date"] = pd.to_datetime(out["trade_date"])
+    out["week_start"] = (
+        out["trade_date"] - pd.to_timedelta(out["trade_date"].dt.dayofweek, unit="D")
+    )
+    out = out.sort_values("trade_date")
+    result = out.groupby(["week_start", "factor_name"]).agg(value=("value", "last")).reset_index()
+    result["trade_date"] = result["week_start"].dt.strftime("%Y-%m-%d")
+    return result[["trade_date", "factor_name", "value"]]
+
+
+# Apply frequency selection
+if params.get("frequency") == "weekly":
+    active_vol = _to_weekly_vol(daily_vol)
+    active_factors = _to_weekly_factors(daily_factors)
+else:
+    active_vol = daily_vol
+    active_factors = daily_factors
 
 
 # --- Scrollable sections ---
 
 # Section 1: Overview
-render_overview_section(daily_vol, daily_factors, params)
+render_overview_section(active_vol, active_factors, params)
 
 st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
 # Section 2: Factor Analysis
-render_analysis_section(daily_vol, daily_factors, params)
+render_analysis_section(active_vol, active_factors, params)
 
 st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
 # Section 3: Monthly Data
-render_monthly_data_section(daily_vol, daily_factors, params)
+render_monthly_data_section(active_vol, active_factors, params)
 
 st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
-# Section 4: Forecast
+# Section 4: Forecast (always uses daily data for HAR-RV model)
 render_forecast_section(daily_vol, daily_factors, params, fetch_func=_fetch_all)
 
 st.markdown('<hr class="section-divider">', unsafe_allow_html=True)

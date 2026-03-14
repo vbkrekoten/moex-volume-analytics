@@ -280,6 +280,15 @@ def render_sidebar() -> dict:
     date_from = col1.date_input("С", value=one_year_ago, min_value=date(2018, 1, 1))
     date_to = col2.date_input("По", value=date.today())
 
+    st.sidebar.header("Частота данных")
+    freq_label = st.sidebar.radio(
+        "Частота",
+        ["Дневные", "Недельные"],
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    frequency = "daily" if freq_label == "Дневные" else "weekly"
+
     st.sidebar.header("Факторы")
     selected_factors = []
     default_on = {"volatility"}
@@ -293,4 +302,5 @@ def render_sidebar() -> dict:
         "date_from": date_from.strftime("%Y-%m-%d"),
         "date_to": date_to.strftime("%Y-%m-%d"),
         "factors": selected_factors,
+        "frequency": frequency,
     }

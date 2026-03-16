@@ -201,17 +201,18 @@ def turnover_scenario_chart(
         hovertemplate="%{y:,.1f} млрд ₽<extra>Прогноз</extra>",
     ))
 
+    layout = {**DARK_LAYOUT}
+    layout["legend"] = dict(
+        orientation="h", yanchor="bottom", y=1.02,
+        xanchor="left", x=0,
+        bgcolor="rgba(17,24,39,0.7)",
+        font=dict(size=10),
+    )
     fig.update_layout(
-        **DARK_LAYOUT,
+        **layout,
         height=350,
         barmode="group",
         yaxis_title="ADTV, млрд ₽",
-        legend=dict(
-            orientation="h", yanchor="bottom", y=1.02,
-            xanchor="left", x=0,
-            bgcolor="rgba(17,24,39,0.7)",
-            font=dict(size=10),
-        ),
     )
     return fig
 

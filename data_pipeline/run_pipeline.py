@@ -263,6 +263,19 @@ def run_full_pipeline(progress_callback=None):
         import logging
         logging.getLogger(__name__).warning("Forecast pipeline failed: %s", e)
 
+    # --- Step 10: Compute investment idea impact ---
+    update_progress("Расчёт влияния инвестидей на обороты...", 0.96)
+    try:
+        from data_pipeline.idea_pipeline import run_idea_impact_pipeline
+        xlsx_path = os.path.join(os.path.dirname(__file__), "..", "Реестр инвестидей.xlsx")
+        run_idea_impact_pipeline(
+            client=client,
+            xlsx_path=xlsx_path if os.path.exists(xlsx_path) else None,
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Idea impact pipeline failed: %s", e)
+
     update_progress("Готово!", 1.0)
 
 

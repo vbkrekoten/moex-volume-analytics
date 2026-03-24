@@ -21,6 +21,7 @@ from ui.analysis_section import render_analysis_section
 from ui.monthly_data_section import render_monthly_data_section
 from ui.data_tab import render_data_section
 from ui.forecast_section import render_forecast_section
+from ui.ideas_section import render_ideas_section
 
 st.set_page_config(
     page_title="MOEX Volume Analytics",
@@ -48,14 +49,14 @@ params = render_sidebar()
 
 
 # --- Load data with caching ---
-def _fetch_all(table: str, date_filter: dict | None = None) -> list[dict]:
+def _fetch_all(table: str, columns: str = "*", date_filter: dict | None = None) -> list[dict]:
     """Fetch all rows from a Supabase table, paginating past 1000-row default."""
     client = get_client()
     all_data: list[dict] = []
     offset = 0
     page_size = 1000
     while True:
-        query = client.table(table).select("*")
+        query = client.table(table).select(columns)
         if date_filter:
             date_col = date_filter.get("col", "trade_date")
             if date_filter.get("gte"):
@@ -171,5 +172,10 @@ render_forecast_section(daily_vol, daily_factors, params, fetch_func=_fetch_all)
 
 st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
-# Section 5: Data Health
+# Section 5: Investment Ideas Impact
+render_ideas_section(params, fetch_func=_fetch_all)
+
+st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+
+# Section 6: Data Health
 render_data_section()

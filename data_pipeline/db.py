@@ -19,6 +19,9 @@ CONFLICT_COLS = {
     "vol_daily_factors": "trade_date,factor_name",
     "vol_forecasts": "forecast_date,target_date,target_name,model_name,scenario",
     "vol_forecast_diagnostics": "forecast_date,model_name,target_name,metric_name,eval_window",
+    "investment_ideas": "ticker,idea_date",
+    "idea_security_history": "trade_date,ticker",
+    "idea_impact_results": "ticker,idea_date",
 }
 
 

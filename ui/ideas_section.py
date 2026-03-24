@@ -45,8 +45,29 @@ def render_ideas_section(params: dict, fetch_func=None):
         )
         return
 
-    # Filter by date range
-    impact_df = _filter_by_dates(impact_df, params)
+    # --- Inline date and source filters ---
+    from datetime import date
+    impact_df["idea_date"] = pd.to_datetime(impact_df["idea_date"])
+    min_date = impact_df["idea_date"].min().date()
+    max_date = impact_df["idea_date"].max().date()
+
+    fc1, fc2 = st.columns(2)
+    with fc1:
+        idea_date_from = st.date_input(
+            "Идеи с", value=min_date, min_value=min_date, max_value=max_date,
+            key="idea_date_from",
+        )
+    with fc2:
+        idea_date_to = st.date_input(
+            "Идеи по", value=max_date, min_value=min_date, max_value=max_date,
+            key="idea_date_to",
+        )
+
+    impact_df = _filter_by_dates(
+        impact_df,
+        str(idea_date_from),
+        str(idea_date_to),
+    )
 
     if impact_df.empty:
         st.info("Нет данных за выбранный период.")
@@ -142,15 +163,16 @@ def _load_ideas_data(_fetch_func, params: dict):
     return ideas_df, impact_df, history_df
 
 
-def _filter_by_dates(impact_df: pd.DataFrame, params: dict) -> pd.DataFrame:
-    """Filter impact results by sidebar date range."""
+def _filter_by_dates(impact_df: pd.DataFrame, date_from: str, date_to: str) -> pd.DataFrame:
+    """Filter impact results by date range."""
     if impact_df.empty:
         return impact_df
     df = impact_df.copy()
     df["idea_date"] = pd.to_datetime(df["idea_date"])
-    date_from = pd.Timestamp(params.get("date_from", "2020-01-01"))
-    date_to = pd.Timestamp(params.get("date_to", "2030-01-01"))
-    return df[(df["idea_date"] >= date_from) & (df["idea_date"] <= date_to)]
+    return df[
+        (df["idea_date"] >= pd.Timestamp(date_from))
+        & (df["idea_date"] <= pd.Timestamp(date_to))
+    ]
 
 
 def _impact_df_to_results(impact_df: pd.DataFrame) -> list[dict]:

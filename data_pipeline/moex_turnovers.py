@@ -65,41 +65,71 @@ TIMEOUT = 30
 
 
 def _fetch_ndm_board_turnovers(dt: date) -> list[dict]:
-    """Fetch NDM turnovers at board level and classify equity vs bonds."""
+    """Fetch NDM turnovers at board level via securities history and classify.
+
+    The real-time turnovers endpoint (/markets/ndm/turnovers.json) ignores the
+    date param and always returns today's data.  We use the history/securities
+    endpoint instead, which returns per-security VALUE in RUB.  We paginate
+    through all securities, aggregate by board, then split into equity vs bonds.
+    """
     date_str = dt.strftime("%Y-%m-%d")
-    url = f"{BASE_URL}/engines/stock/markets/ndm/turnovers.json"
-    params = {
-        "iss.meta": "off",
-        "is_tonight_session": 0,
-        "date": date_str,
-    }
-    try:
-        r = requests.get(url, params=params, timeout=TIMEOUT)
-        r.raise_for_status()
-        data = r.json()
-    except Exception as e:
-        logger.warning("MOEX NDM board turnovers error for %s: %s", date_str, e)
-        return []
+    url = f"{BASE_URL}/history/engines/stock/markets/ndm/securities.json"
 
-    turnovers = data.get("turnovers", {})
-    columns = turnovers.get("columns", [])
-    raw_data = turnovers.get("data", [])
+    # Accumulate VALUE (RUB) and NUMTRADES by board
+    board_value: dict[str, float] = {}
+    board_trades: dict[str, int] = {}
+    start = 0
+    page_size = 100
 
-    # Accumulate by instrument_class (shares vs bonds)
-    accum: dict[str, dict] = {}  # instrument_class -> {value_rub, num_trades}
-    for row in raw_data:
-        rec = dict(zip(columns, row))
-        board_id = rec.get("BOARDID", "")
-        value_rub = rec.get("VALTODAY") or rec.get("VALUE") or 0
-        num_trades = rec.get("NUMTRADES") or 0
-        if not value_rub:
+    while True:
+        params = {
+            "iss.meta": "off",
+            "date": date_str,
+            "iss.only": "history",
+            "history.columns": "BOARDID,SECID,VALUE,NUMTRADES",
+            "start": start,
+            "limit": page_size,
+        }
+        try:
+            r = requests.get(url, params=params, timeout=TIMEOUT)
+            r.raise_for_status()
+            data = r.json()
+        except Exception as e:
+            logger.warning("MOEX NDM history error for %s (start=%d): %s",
+                           date_str, start, e)
+            break
+
+        history = data.get("history", {})
+        columns = history.get("columns", [])
+        raw_data = history.get("data", [])
+        if not raw_data:
+            break
+
+        for row in raw_data:
+            rec = dict(zip(columns, row))
+            bid = rec.get("BOARDID", "")
+            val = rec.get("VALUE") or 0
+            trades = rec.get("NUMTRADES") or 0
+            board_value[bid] = board_value.get(bid, 0.0) + float(val)
+            board_trades[bid] = board_trades.get(bid, 0) + int(trades)
+
+        start += len(raw_data)
+        if len(raw_data) < page_size:
+            break
+
+    # Split into equity (shares) vs bonds
+    # VALUE from securities history is in RUB; turnovers table stores millions
+    accum: dict[str, dict] = {}
+    for bid in board_value:
+        val_mln = board_value[bid] / 1e6  # RUB -> millions
+        trades = board_trades.get(bid, 0)
+        if val_mln < 0.001:
             continue
-
-        instrument_class = "shares" if board_id in NDM_EQUITY_BOARDS else "bonds"
+        instrument_class = "shares" if bid in NDM_EQUITY_BOARDS else "bonds"
         if instrument_class not in accum:
             accum[instrument_class] = {"value_rub": 0.0, "num_trades": 0}
-        accum[instrument_class]["value_rub"] += float(value_rub)
-        accum[instrument_class]["num_trades"] += int(num_trades)
+        accum[instrument_class]["value_rub"] += val_mln
+        accum[instrument_class]["num_trades"] += trades
 
     rows = []
     for instrument_class, vals in accum.items():

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import plotly.graph_objects as go
 import numpy as np
+import pandas as pd
 
 from ui.charts import DARK_LAYOUT, COLORS
 
@@ -168,7 +169,7 @@ def idea_detail_chart(
 
     # Event date vertical line
     fig.add_vline(
-        x=idea_date, line_dash="dash", line_color="#ff6b6b",
+        x=pd.Timestamp(idea_date), line_dash="dash", line_color="#ff6b6b",
         annotation_text=f"{ticker} — идея",
         annotation_position="top left",
         annotation_font=dict(size=10, color="#ff6b6b"),

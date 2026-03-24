@@ -22,24 +22,51 @@ CALENDAR_BUFFER_AFTER = 15
 def load_ideas_from_xlsx(path: str) -> pd.DataFrame:
     """Load investment ideas registry from Excel file.
 
-    Returns DataFrame with columns: ticker, idea_date (str YYYY-MM-DD).
+    Supports two formats:
+    - New (header at row 1): columns id, analyst, ticker, date_start, link
+    - Old (header at row 0): columns ticker, idea_date
+
+    Returns DataFrame with columns: ticker, idea_date (str YYYY-MM-DD), source.
     """
-    df = pd.read_excel(path)
-    df.columns = [c.strip().lower() for c in df.columns]
-    df["idea_date"] = pd.to_datetime(df["idea_date"]).dt.strftime("%Y-%m-%d")
+    # Try new format first (row 0 is title, row 1 is header)
+    df = pd.read_excel(path, header=1)
+    df.columns = [str(c).strip().lower() for c in df.columns]
+
+    if "date_start" in df.columns and "analyst" in df.columns:
+        # New format: analyst -> source, date_start -> idea_date
+        df = df.rename(columns={"date_start": "idea_date", "analyst": "source"})
+        df["source"] = df["source"].astype(str).str.strip()
+    elif "idea_date" not in df.columns:
+        # Fallback: old format (header at row 0)
+        df = pd.read_excel(path)
+        df.columns = [str(c).strip().lower() for c in df.columns]
+
+    df["idea_date"] = pd.to_datetime(df["idea_date"], dayfirst=True).dt.strftime("%Y-%m-%d")
     df["ticker"] = df["ticker"].astype(str).str.strip().str.upper()
-    return df[["ticker", "idea_date"]].drop_duplicates()
+
+    # Filter out non-standard tickers (contain spaces — not equity symbols)
+    df = df[~df["ticker"].str.contains(r"\s", na=False)]
+
+    if "source" not in df.columns:
+        df["source"] = None
+
+    return df[["ticker", "idea_date", "source"]].drop_duplicates(
+        subset=["ticker", "idea_date"]
+    )
 
 
 def _ideas_to_rows(ideas_df: pd.DataFrame) -> list[dict]:
     """Convert ideas DataFrame to list of dicts for Supabase upsert."""
     rows = []
     for _, row in ideas_df.iterrows():
-        rows.append({
+        r = {
             "ticker": row["ticker"],
             "idea_date": row["idea_date"],
             "idea_time": "12:00:00",
-        })
+        }
+        if row.get("source"):
+            r["source"] = row["source"]
+        rows.append(r)
     return rows
 
 
@@ -91,7 +118,7 @@ def run_idea_impact_pipeline(
         ideas_df = load_ideas_from_xlsx(xlsx_path)
         _log(progress_callback, f"Loaded {len(ideas_df)} ideas from xlsx")
     else:
-        resp = client.table("investment_ideas").select("ticker,idea_date").execute()
+        resp = client.table("investment_ideas").select("ticker,idea_date,source").execute()
         ideas_df = pd.DataFrame(resp.data)
         if ideas_df.empty:
             _log(progress_callback, "No ideas in DB and no xlsx provided")
@@ -193,6 +220,9 @@ def run_idea_impact_pipeline(
 
         result["ticker"] = ticker
         result["idea_date"] = idea_date
+        source = idea.get("source")
+        if source:
+            result["source"] = source
         impact_results.append(result)
 
     _log(progress_callback, f"Computed {len(impact_results)} impacts, skipped {skipped}")

@@ -250,8 +250,10 @@ def timeline_scatter(ideas_data: list[dict]) -> go.Figure:
                 line=dict(width=1, color="rgba(255,255,255,0.3)"),
             ),
             text=[d["ticker"] for d in group],
+            customdata=[[d.get("source", "")] for d in group],
             hovertemplate=(
                 "<b>%{text}</b><br>"
+                "Источник: %{customdata[0]}<br>"
                 "Дата: %{x}<br>"
                 "Пик AV: %{y:.2f}x<br>"
                 "<extra></extra>"
@@ -270,5 +272,59 @@ def timeline_scatter(ideas_data: list[dict]) -> go.Figure:
         height=400,
         yaxis_title="Пиковый AV Ratio",
         xaxis_title="Дата публикации идеи",
+    )
+    return fig
+
+
+# ---------------------------------------------------------------------------
+# 6. Source (analyst) comparison bar chart
+# ---------------------------------------------------------------------------
+
+def source_comparison_chart(source_summary: list[dict]) -> go.Figure:
+    """Horizontal bar chart comparing sources (analysts) by avg CAV.
+
+    Args:
+        source_summary: list of dicts with source, n_ideas, avg_cav, avg_peak_av, pct_significant
+    """
+    fig = go.Figure()
+    if not source_summary:
+        fig.update_layout(**DARK_LAYOUT, title="Нет данных")
+        return fig
+
+    # Sort by n_ideas descending, take top 20
+    data = sorted(source_summary, key=lambda x: x["n_ideas"], reverse=True)[:20]
+    sources = [d["source"] for d in data]
+    cavs = [d["avg_cav"] for d in data]
+    n_ideas = [d["n_ideas"] for d in data]
+    pct_sig = [d["pct_significant"] for d in data]
+
+    # Color by avg_cav: positive = green, negative = red
+    colors = ["#51cf66" if c > 0 else "#ff6b6b" for c in cavs]
+
+    fig.add_trace(go.Bar(
+        y=sources, x=cavs, orientation="h",
+        name="Сред. CAV",
+        marker_color=colors,
+        text=[f"{c:+.2f} ({n} идей, {p:.0f}% знач.)" for c, n, p in zip(cavs, n_ideas, pct_sig)],
+        textposition="auto",
+        textfont=dict(size=10),
+        hovertemplate=(
+            "<b>%{y}</b><br>"
+            "Сред. CAV: %{x:+.3f}<br>"
+            "<extra></extra>"
+        ),
+    ))
+
+    fig.add_vline(x=0, line_dash="dash", line_color="rgba(255,255,255,0.2)")
+
+    layout = {**DARK_LAYOUT}
+    layout.pop("legend", None)
+    fig.update_layout(
+        **layout,
+        height=max(300, len(data) * 28),
+        xaxis_title="Средний CAV",
+        title="Топ-20 источников по количеству идей",
+        yaxis=dict(autorange="reversed"),
+        showlegend=False,
     )
     return fig

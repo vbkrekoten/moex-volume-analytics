@@ -198,4 +198,27 @@ def aggregate_event_study(results: list[dict]) -> dict:
         "median_peak_av_ratio": round(float(np.median(peak_ratios)), 4),
         "aav_by_day": aav_by_day,
         "ticker_summary": ticker_summary,
+        "source_summary": _build_source_summary(results),
     }
+
+
+def _build_source_summary(results: list[dict]) -> list[dict]:
+    """Group results by source (analyst) and compute per-source metrics."""
+    source_data: dict[str, list] = {}
+    for r in results:
+        s = r.get("source") or "Неизвестно"
+        source_data.setdefault(s, []).append(r)
+
+    summary = []
+    for s, recs in source_data.items():
+        summary.append({
+            "source": s,
+            "n_ideas": len(recs),
+            "avg_cav": round(float(np.mean([r["cav"] for r in recs])), 4),
+            "avg_peak_av": round(float(np.mean([r["peak_av_ratio"] for r in recs])), 4),
+            "pct_significant": round(
+                sum(1 for r in recs if r["is_significant"]) / len(recs) * 100, 1
+            ),
+        })
+    summary.sort(key=lambda x: x["avg_cav"], reverse=True)
+    return summary

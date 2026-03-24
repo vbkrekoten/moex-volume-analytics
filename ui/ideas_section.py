@@ -52,6 +52,20 @@ def render_ideas_section(params: dict, fetch_func=None):
         st.info("Нет данных за выбранный период.")
         return
 
+    # --- Source filter (inline) ---
+    all_sources = sorted(impact_df["source"].dropna().unique().tolist()) if "source" in impact_df.columns else []
+    if all_sources:
+        selected_sources = st.multiselect(
+            "Фильтр по источнику (аналитику)",
+            options=all_sources,
+            default=all_sources,
+            key="idea_source_filter",
+        )
+        if selected_sources and len(selected_sources) < len(all_sources):
+            impact_df = impact_df[
+                impact_df["source"].isin(selected_sources) | impact_df["source"].isna()
+            ]
+
     # Prepare aggregated results
     results_list = _impact_df_to_results(impact_df)
     agg = aggregate_event_study(results_list)
@@ -71,6 +85,11 @@ def render_ideas_section(params: dict, fetch_func=None):
 
     # --- Block 3: Distribution + Top tickers ---
     _render_distribution_block(impact_df, agg)
+
+    st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+
+    # --- Block 3.5: Source analytics ---
+    _render_source_block(impact_df, agg)
 
     st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
 
@@ -107,12 +126,12 @@ def _render_glossary():
 def _load_ideas_data(_fetch_func, params: dict):
     """Load ideas, impact results, and security history from Supabase."""
     ideas_df = pd.DataFrame(
-        _fetch_func("investment_ideas", "ticker,idea_date")
+        _fetch_func("investment_ideas", "ticker,idea_date,source")
     )
     impact_df = pd.DataFrame(
         _fetch_func(
             "idea_impact_results",
-            "ticker,idea_date,est_mean_volume,est_std_volume,est_days,"
+            "ticker,idea_date,source,est_mean_volume,est_std_volume,est_days,"
             "cav,peak_av_ratio,peak_av_day,peak_nav,is_significant,"
             "av_ratio_by_day,nav_by_day,volume_by_day",
         )
@@ -150,6 +169,7 @@ def _impact_df_to_results(impact_df: pd.DataFrame) -> list[dict]:
         results.append({
             "ticker": row["ticker"],
             "idea_date": str(row["idea_date"]),
+            "source": row.get("source"),
             "cav": row.get("cav", 0),
             "peak_av_ratio": row.get("peak_av_ratio", 1),
             "peak_av_day": row.get("peak_av_day", 0),
@@ -240,6 +260,46 @@ def _render_distribution_block(impact_df: pd.DataFrame, agg: dict):
             )
 
 
+def _render_source_block(impact_df: pd.DataFrame, agg: dict):
+    """Block 3.5: Source (analyst) analytics."""
+    st.markdown("##### Аналитика по источникам идей")
+    st.markdown(
+        '<div class="glass-card" style="border-left: 3px solid #74c0fc; padding: 0.8rem 1rem;">'
+        '<div style="font-size: 0.85rem; color: #d1d5db; line-height: 1.55;">'
+        'Сравнение аналитиков/брокеров по влиянию их инвестидей на торговые обороты. '
+        'Средний CAV показывает, насколько в среднем вырос кумулятивный оборот после публикации идеи.'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
+
+    source_summary = agg.get("source_summary", [])
+    if not source_summary:
+        st.info("Нет данных по источникам.")
+        return
+
+    col_table, col_chart = st.columns([1, 1])
+
+    with col_table:
+        st.markdown("###### Топ источники по среднему CAV")
+        src_df = pd.DataFrame(source_summary)
+        src_df.columns = ["Источник", "Идей", "Сред. CAV", "Сред. пик AV", "% значимых"]
+        st.dataframe(
+            src_df.style.format({
+                "Сред. CAV": "{:+.3f}",
+                "Сред. пик AV": "{:.2f}x",
+                "% значимых": "{:.0f}%",
+            }),
+            use_container_width=True,
+            hide_index=True,
+            height=500,
+        )
+
+    with col_chart:
+        from ui.ideas_charts import source_comparison_chart
+        fig = source_comparison_chart(source_summary)
+        st.plotly_chart(fig, use_container_width=True)
+
+
 def _render_timeline(impact_df: pd.DataFrame):
     """Block 4: Timeline scatter of all ideas."""
     st.markdown("##### Timeline инвестидей")
@@ -258,6 +318,7 @@ def _render_timeline(impact_df: pd.DataFrame):
             "peak_av_ratio": row.get("peak_av_ratio", 1),
             "cav": row.get("cav", 0),
             "ticker": row["ticker"],
+            "source": row.get("source", ""),
             "is_significant": row.get("is_significant", False),
         })
     fig = timeline_scatter(ideas_data)
@@ -278,7 +339,9 @@ def _render_detail_explorer(impact_df: pd.DataFrame, history_df: pd.DataFrame):
             date_str = str(row["idea_date"])[:10]
             av = row.get("peak_av_ratio", 1)
             sig = "★" if row.get("is_significant") else ""
-            options.append(f"{row['ticker']} — {date_str} (AV: {av:.2f}x) {sig}")
+            src = row.get("source", "") or ""
+            src_label = f" [{src}]" if src else ""
+            options.append(f"{row['ticker']} — {date_str}{src_label} (AV: {av:.2f}x) {sig}")
 
         selected = st.selectbox(
             "Выберите идею", options, key="idea_detail_select",
@@ -337,6 +400,10 @@ def _render_detail_explorer(impact_df: pd.DataFrame, history_df: pd.DataFrame):
             idea_date,
         )
         st.plotly_chart(fig, use_container_width=True)
+
+        # Source label
+        source_val = row.get("source", "") or "Неизвестно"
+        st.markdown(f"**Источник:** {source_val}")
 
         # Metrics row
         mc1, mc2, mc3, mc4 = st.columns(4)

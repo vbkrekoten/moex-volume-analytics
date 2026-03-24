@@ -170,12 +170,17 @@ def idea_detail_chart(
         annotation_font=dict(size=10, color="#f0b429"),
     )
 
-    # Event date vertical line
-    fig.add_vline(
-        x=pd.Timestamp(idea_date), line_dash="dash", line_color="#ff6b6b",
-        annotation_text=f"{ticker} — идея",
-        annotation_position="top left",
-        annotation_font=dict(size=10, color="#ff6b6b"),
+    # Event date vertical line (use shape+annotation to avoid Plotly sum() bug)
+    idea_ts = pd.Timestamp(idea_date)
+    fig.add_shape(
+        type="line", x0=idea_ts, x1=idea_ts, y0=0, y1=1,
+        yref="paper", line=dict(dash="dash", color="#ff6b6b", width=1.5),
+    )
+    fig.add_annotation(
+        x=idea_ts, y=1, yref="paper",
+        text=f"{ticker} — идея",
+        showarrow=False, font=dict(size=10, color="#ff6b6b"),
+        xanchor="left", yanchor="bottom",
     )
 
     # Annotate AV ratios on event window days

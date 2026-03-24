@@ -56,6 +56,9 @@ def render_ideas_section(params: dict, fetch_func=None):
     results_list = _impact_df_to_results(impact_df)
     agg = aggregate_event_study(results_list)
 
+    # --- Glossary ---
+    _render_glossary()
+
     # --- Block 1: KPI cards ---
     _render_kpi_cards(agg)
 
@@ -81,6 +84,23 @@ def render_ideas_section(params: dict, fetch_func=None):
 
     # --- Block 6: Methodology ---
     _render_methodology()
+
+
+def _render_glossary():
+    """Expandable glossary of terms used in this section."""
+    with st.expander("📖 Глоссарий терминов", expanded=False):
+        st.markdown("""
+| Термин | Расшифровка | Формула / пояснение |
+|--------|-------------|---------------------|
+| **AV Ratio** (Abnormal Volume Ratio) | Коэффициент аномального объёма | `V(t) / V̄` — отношение фактического оборота к среднему за «нормальный» период. Значение 2.0x означает, что оборот был в 2 раза выше нормы |
+| **Пиковый AV** | Максимальный AV Ratio в окне события | Наибольший всплеск оборота среди дней [-1, +5] вокруг публикации идеи |
+| **NAV** (Normalized Abnormal Volume) | Нормализованный аномальный объём | `(V(t) − V̄) / σ` — аномальный объём в стандартных отклонениях. Используется для статистической проверки значимости |
+| **CAV** (Cumulative Abnormal Volume) | Кумулятивный аномальный объём | `Σ (AV(t) − 1)` за окно [-1, +5] — суммарный избыточный оборот за всё окно события. CAV = +2.0 означает, что за 7 дней суммарно «лишних» оборотов набралось на 2 нормальных дня |
+| **Значимость (p<0.05)** | Статистическая значимость | Идея признаётся значимой, если |NAV| > 1.96 хотя бы в один день окна — т.е. аномалия не объясняется обычной волатильностью с вероятностью 95% |
+| **d=0, d+1, d-1** | Дни относительно публикации | d=0 — день выхода идеи, d-1 — день до, d+1 — день после и т.д. |
+| **Estimation Window** | Окно оценки «нормы» | [-120, -6] торговых дней до события — период, по которому считается средний оборот V̄ и стандартное отклонение σ |
+| **Event Window** | Окно события | [-1, +5] дней — период измерения аномального оборота |
+""")
 
 
 @st.cache_data(ttl=3600)
@@ -146,15 +166,23 @@ def _impact_df_to_results(impact_df: pd.DataFrame) -> list[dict]:
 def _render_kpi_cards(agg: dict):
     """Block 1: KPI cards."""
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Всего идей", f"{agg.get('n_total', 0)}")
+    c1.metric(
+        "Всего идей", f"{agg.get('n_total', 0)}",
+        help="Количество инвестиционных идей за выбранный период",
+    )
     c2.metric(
         "Значимых (p<0.05)",
         f"{agg.get('n_significant', 0)} ({agg.get('pct_significant', 0):.0f}%)",
+        help="Идеи, после которых аномальный объём (NAV) превысил 1.96σ — т.е. всплеск оборота статистически не случаен с вероятностью 95%",
     )
-    c3.metric("Средний CAV", f"{agg.get('mean_cav', 0):+.2f}")
+    c3.metric(
+        "Средний CAV", f"{agg.get('mean_cav', 0):+.2f}",
+        help="Cumulative Abnormal Volume — средний кумулятивный избыточный оборот за окно [-1, +5] дней. Положительное значение = идеи в среднем увеличивают обороты",
+    )
     c4.metric(
         "Медиана пикового AV",
         f"{agg.get('median_peak_av_ratio', 1):.2f}x",
+        help="Медианное значение пикового AV Ratio — во сколько раз оборот превышал норму в самый активный день. Например, 1.50x = оборот был на 50% выше нормы",
     )
 
 
@@ -311,10 +339,22 @@ def _render_detail_explorer(impact_df: pd.DataFrame, history_df: pd.DataFrame):
 
         # Metrics row
         mc1, mc2, mc3, mc4 = st.columns(4)
-        mc1.metric("CAV", f"{row.get('cav', 0):+.3f}")
-        mc2.metric("Пик AV", f"{row.get('peak_av_ratio', 1):.2f}x (d{row.get('peak_av_day', 0):+d})")
-        mc3.metric("Пик NAV", f"{row.get('peak_nav', 0):+.2f}σ")
-        mc4.metric("Значимость", "Да ★" if row.get("is_significant") else "Нет")
+        mc1.metric(
+            "CAV", f"{row.get('cav', 0):+.3f}",
+            help="Cumulative Abnormal Volume — сумма (AV−1) за окно [-1,+5]. Показывает общий избыточный оборот",
+        )
+        mc2.metric(
+            "Пик AV", f"{row.get('peak_av_ratio', 1):.2f}x (d{row.get('peak_av_day', 0):+d})",
+            help="Максимальное отношение оборота к норме и день, когда оно достигнуто (d=0 — день идеи)",
+        )
+        mc3.metric(
+            "Пик NAV", f"{row.get('peak_nav', 0):+.2f}σ",
+            help="Пиковый нормализованный аномальный объём в стандартных отклонениях. |NAV|>1.96 = статистически значимо",
+        )
+        mc4.metric(
+            "Значимость", "Да ★" if row.get("is_significant") else "Нет",
+            help="Статистически значимый всплеск оборота (|NAV| > 1.96, p < 0.05) хотя бы в один день окна",
+        )
 
 
 def _render_methodology():

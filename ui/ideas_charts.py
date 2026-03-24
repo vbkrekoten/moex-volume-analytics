@@ -319,12 +319,10 @@ def source_comparison_chart(source_summary: list[dict]) -> go.Figure:
 
     layout = {**DARK_LAYOUT}
     layout.pop("legend", None)
-    fig.update_layout(
-        **layout,
-        height=max(300, len(data) * 28),
-        xaxis_title="Средний CAV",
-        title="Топ-20 источников по количеству идей",
-        yaxis=dict(autorange="reversed"),
-        showlegend=False,
-    )
+    layout["height"] = max(300, len(data) * 28)
+    layout["xaxis_title"] = "Средний CAV"
+    layout["title"] = "Топ-20 источников по количеству идей"
+    layout["yaxis"] = dict(autorange="reversed")
+    layout["showlegend"] = False
+    fig.update_layout(**layout)
     return fig

@@ -150,32 +150,30 @@ else:
     active_factors = daily_factors
 
 
-# --- Scrollable sections ---
+# --- Tabs ---
+tab_overview, tab_analysis, tab_ideas, tab_forecast, tab_monthly, tab_data = st.tabs([
+    "Обзор оборотов",
+    "Факторный анализ",
+    "Влияние инвестидей",
+    "Прогноз волатильности",
+    "Помесячные данные",
+    "Данные",
+])
 
-# Section 1: Overview
-render_overview_section(active_vol, active_factors, params)
+with tab_overview:
+    render_overview_section(active_vol, active_factors, params)
 
-st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+with tab_analysis:
+    render_analysis_section(active_vol, active_factors, params)
 
-# Section 2: Factor Analysis
-render_analysis_section(active_vol, active_factors, params)
+with tab_ideas:
+    render_ideas_section(params, fetch_func=_fetch_all)
 
-st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
+with tab_forecast:
+    render_forecast_section(daily_vol, daily_factors, params, fetch_func=_fetch_all)
 
-# Section 3: Monthly Data
-render_monthly_data_section(active_vol, active_factors, params)
+with tab_monthly:
+    render_monthly_data_section(active_vol, active_factors, params)
 
-st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-
-# Section 4: Forecast (always uses daily data for HAR-RV model)
-render_forecast_section(daily_vol, daily_factors, params, fetch_func=_fetch_all)
-
-st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-
-# Section 5: Investment Ideas Impact
-render_ideas_section(params, fetch_func=_fetch_all)
-
-st.markdown('<hr class="section-divider">', unsafe_allow_html=True)
-
-# Section 6: Data Health
-render_data_section()
+with tab_data:
+    render_data_section()

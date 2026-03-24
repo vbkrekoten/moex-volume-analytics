@@ -95,11 +95,14 @@ def impact_distribution_chart(peak_ratios: list[float]) -> go.Figure:
         hovertemplate="Диапазон: %{x}<br>Идей: %{y}<extra></extra>",
     ))
 
+    layout = {**DARK_LAYOUT}
+    layout["margin"] = dict(l=50, r=30, t=30, b=55)
     fig.update_layout(
-        **DARK_LAYOUT,
-        height=320,
+        **layout,
+        height=380,
         yaxis_title="Количество идей",
         xaxis_title="Пиковый AV Ratio",
+        yaxis_range=[0, max(counts) * 1.2],
     )
     return fig
 

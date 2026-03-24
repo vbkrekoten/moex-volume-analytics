@@ -264,6 +264,7 @@ def _render_timeline(impact_df: pd.DataFrame):
     st.plotly_chart(fig, use_container_width=True)
 
 
+@st.fragment
 def _render_detail_explorer(impact_df: pd.DataFrame, history_df: pd.DataFrame):
     """Block 5: Single idea detail explorer."""
     with st.expander("Детальный анализ конкретной идеи", expanded=False):

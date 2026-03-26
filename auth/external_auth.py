@@ -168,13 +168,53 @@ def render_login_form() -> None:
 
 
 def _render_code_input(is_registration: bool) -> None:
-    """Show code input and verify."""
+    """Show code input with countdown timer and resend button."""
+    ts = st.session_state.get(_CODE_TS_KEY, 0)
+    elapsed = int(time.time() - ts)
+    remaining = max(0, _CODE_TTL - elapsed)
+    mins, secs = divmod(remaining, 60)
+
+    # Countdown + resend row
+    col_timer, col_resend = st.columns([2, 1])
+    with col_timer:
+        if remaining > 0:
+            st.markdown(
+                f'<div style="color: #9ca3af; font-size: 0.85rem;">'
+                f'Код действителен ещё <b style="color: #f0b429;">{mins}:{secs:02d}</b>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(
+                '<div style="color: #ff6b6b; font-size: 0.85rem;">'
+                'Код просрочен. Запросите новый.'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+    with col_resend:
+        resend_disabled = remaining > (_CODE_TTL - 30)  # allow resend after 30s
+        if st.button(
+            "Отправить повторно",
+            key="_code_resend",
+            disabled=resend_disabled,
+        ):
+            phone = st.session_state.get(_CODE_PHONE_KEY, "")
+            if phone:
+                chat_id = get_chat_id_by_phone(phone)
+                if chat_id:
+                    code = _generate_code()
+                    _store_code(phone, code)
+                    send_code(chat_id, code)
+                    st.success("Новый код отправлен в Telegram.")
+                    st.rerun()
+
+    # Code input
     entered = st.text_input("Введите 6-значный код из Telegram", key="_code_input")
-    if st.button("Подтвердить", key="_code_confirm"):
+    if st.button("Подтвердить", key="_code_confirm", type="primary"):
         if _verify_code(entered):
             if is_registration:
                 reg = st.session_state.pop("_ext_reg", {})
-                user = _create_user(
+                _create_user(
                     reg["first_name"], reg["last_name"],
                     reg["phone"], reg.get("email", ""),
                 )
@@ -199,4 +239,7 @@ def _render_code_input(is_registration: bool) -> None:
             _clear_code()
             st.rerun()
         else:
-            st.error("Неверный или просроченный код.")
+            if remaining <= 0:
+                st.error("Код просрочен. Нажмите «Отправить повторно».")
+            else:
+                st.error("Неверный код. Проверьте и попробуйте снова.")

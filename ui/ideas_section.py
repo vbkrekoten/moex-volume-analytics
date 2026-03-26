@@ -309,9 +309,10 @@ def _render_distribution_block(impact_df: pd.DataFrame, agg: dict):
         ticker_summary = agg.get("ticker_summary", [])
         if ticker_summary:
             top_df = pd.DataFrame(ticker_summary[:20])
-            top_df.columns = ["Тикер", "Идей", "Сред. CAV", "Сред. пик AV", "% значимых"]
+            top_df.columns = ["Тикер", "Идей", "Сред. ΔCAV", "Сред. CAV", "Сред. пик AV", "% значимых"]
             st.dataframe(
                 top_df.style.format({
+                    "Сред. ΔCAV": "{:+.3f}",
                     "Сред. CAV": "{:+.3f}",
                     "Сред. пик AV": "{:.2f}x",
                     "% значимых": "{:.0f}%",

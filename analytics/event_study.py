@@ -285,6 +285,19 @@ def aggregate_event_study(results: list[dict]) -> dict:
     peak_ratios = [r["peak_av_ratio"] for r in results]
     pvalues = [r.get("placebo_pvalue") for r in results if r.get("placebo_pvalue") is not None]
 
+    # Net turnover effect in RUB:
+    # For each idea: ΔCAV × est_mean_volume = excess turnover over event window
+    # Sum all ideas (not just significant — honest both-sided estimate)
+    net_effect_all = sum(
+        r.get("delta_cav", r["cav"]) * r.get("est_mean_volume", 0)
+        for r in results
+    )
+    # Also compute for significant-only ideas
+    net_effect_sig = sum(
+        r.get("delta_cav", r["cav"]) * r.get("est_mean_volume", 0)
+        for r in results if r.get("is_significant")
+    )
+
     # Per-ticker summary
     ticker_data: dict[str, list] = {}
     for r in results:
@@ -318,6 +331,8 @@ def aggregate_event_study(results: list[dict]) -> dict:
         "mean_peak_av_ratio": round(float(np.mean(peak_ratios)), 4),
         "median_peak_av_ratio": round(float(np.median(peak_ratios)), 4),
         "mean_placebo_pvalue": round(float(np.mean(pvalues)), 4) if pvalues else None,
+        "net_turnover_effect_rub": round(net_effect_all, 2),
+        "net_turnover_effect_sig_rub": round(net_effect_sig, 2),
         "aav_by_day": aav_by_day,
         "ticker_summary": ticker_summary,
         "source_summary": _build_source_summary(results),

@@ -213,7 +213,40 @@ def _impact_df_to_results(impact_df: pd.DataFrame) -> list[dict]:
 
 
 def _render_kpi_cards(agg: dict):
-    """Block 1: KPI cards."""
+    """Block 1: KPI cards — net effect prominently on top, then details."""
+    # --- Hero KPI: net turnover effect ---
+    net_all = agg.get("net_turnover_effect_rub", 0)
+    net_sig = agg.get("net_turnover_effect_sig_rub", 0)
+
+    # Format in billions if large enough, else millions
+    def _fmt_rub(val):
+        if abs(val) >= 1e9:
+            return f"{val / 1e9:+,.1f} млрд ₽"
+        return f"{val / 1e6:+,.0f} млн ₽"
+
+    hero1, hero2 = st.columns(2)
+    hero1.metric(
+        "Суммарный чистый эффект на обороты (все идеи)",
+        _fmt_rub(net_all),
+        help=(
+            "Сумма ΔCAV × средний дневной оборот по каждой идее. "
+            "ΔCAV = CAV_факт − медиана(CAV_плацебо). "
+            "Учитываются ВСЕ идеи (и положительные, и отрицательные). "
+            "Это оценка суммарного избыточного оборота сверх фонового шума за окно [0, +3] дней"
+        ),
+    )
+    hero2.metric(
+        "Чистый эффект (только значимые, p<0.05)",
+        _fmt_rub(net_sig),
+        help=(
+            "То же, но только для идей с placebo p-value < 0.05 — "
+            "где аномальный объём маловероятно случаен"
+        ),
+    )
+
+    st.markdown("")
+
+    # --- Detail KPI row ---
     c1, c2, c3, c4 = st.columns(4)
     c1.metric(
         "Всего идей", f"{agg.get('n_total', 0)}",
@@ -222,11 +255,11 @@ def _render_kpi_cards(agg: dict):
     c2.metric(
         "Значимых (placebo p<0.05)",
         f"{agg.get('n_significant', 0)} ({agg.get('pct_significant', 0):.0f}%)",
-        help="Идеи, у которых CAV попал в верхние 5% эмпирического плацебо-распределения — т.е. аномальный объём маловероятно случаен",
+        help="Идеи, у которых CAV попал в верхние 5% эмпирического плацебо-распределения",
     )
     c3.metric(
         "Средний ΔCAV", f"{agg.get('mean_delta_cav', 0):+.2f}",
-        help="Скорректированный CAV = CAV_факт − медиана(CAV_плацебо). Показывает избыточный оборот сверх фонового шума. Может быть отрицательным",
+        help="Скорректированный CAV = CAV_факт − медиана(CAV_плацебо). Может быть отрицательным",
     )
     c4.metric(
         "Медиана пикового AV",

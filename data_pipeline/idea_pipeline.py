@@ -211,7 +211,8 @@ def run_idea_impact_pipeline(
             ticker_hist,
             idea_date,
             est_window=(-120, -6),
-            evt_window=(-1, 5),
+            evt_window=(0, 3),
+            run_placebo=True,
         )
 
         if result is None:

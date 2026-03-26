@@ -276,11 +276,13 @@ def _render_user_block() -> None:
         return
 
     name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+    phone = user.get("phone", "")
     auth_icon = "🔑" if user.get("auth_type") == "lockr" else "👤"
+    display = phone if phone else (name or user.get("email", "Пользователь"))
     st.sidebar.markdown(
         f'<div style="padding:0.4rem 0.6rem; border-radius:8px; '
         f'background:rgba(240,180,41,0.08); margin-bottom:0.8rem;">'
-        f'<span style="font-size:0.9rem;">{auth_icon} {name}</span></div>',
+        f'<span style="font-size:0.9rem;">{auth_icon} {display}</span></div>',
         unsafe_allow_html=True,
     )
     if st.sidebar.button("Выйти", key="logout_btn"):

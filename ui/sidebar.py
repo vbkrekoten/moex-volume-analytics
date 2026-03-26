@@ -261,8 +261,36 @@ TERM_DESCRIPTIONS = {
 FACTOR_UNITS = {k: v.get("unit", "") for k, v in FACTOR_DESCRIPTIONS.items()}
 
 
+def _render_user_block() -> None:
+    """Show current user info and logout button in sidebar (if auth enabled)."""
+    from auth.config import AUTH_ENABLED
+    if not AUTH_ENABLED:
+        return
+    from auth.session import is_authenticated, get_current_user, clear_session
+
+    if not is_authenticated():
+        return
+
+    user = get_current_user()
+    if not user:
+        return
+
+    name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+    auth_icon = "🔑" if user.get("auth_type") == "lockr" else "👤"
+    st.sidebar.markdown(
+        f'<div style="padding:0.4rem 0.6rem; border-radius:8px; '
+        f'background:rgba(240,180,41,0.08); margin-bottom:0.8rem;">'
+        f'<span style="font-size:0.9rem;">{auth_icon} {name}</span></div>',
+        unsafe_allow_html=True,
+    )
+    if st.sidebar.button("Выйти", key="logout_btn"):
+        clear_session()
+        st.rerun()
+
+
 def render_sidebar() -> dict:
     """Render sidebar controls and return selected parameters."""
+    _render_user_block()
     st.sidebar.header("Инструменты")
     select_all = st.sidebar.checkbox("Все классы", value=True)
     if select_all:

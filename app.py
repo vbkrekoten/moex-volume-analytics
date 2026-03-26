@@ -33,6 +33,20 @@ st.set_page_config(
 # --- Custom CSS ---
 load_custom_css()
 
+# --- Auth gate ---
+from auth.config import AUTH_ENABLED  # noqa: E402
+
+if AUTH_ENABLED:
+    from auth.lockr_oidc import handle_callback
+    from auth.session import is_authenticated
+    from auth.login_ui import render_login_page
+
+    handle_callback()
+
+    if not is_authenticated():
+        render_login_page()
+        st.stop()
+
 # --- Title ---
 st.markdown(
     '<h1 style="margin-bottom:0;">Аналитика торговых оборотов MOEX</h1>',

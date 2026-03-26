@@ -6,3 +6,12 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+
+  tg-bot:
+    build: .
+    command: python -m auth.tg_bot_server
+    env_file:
+      - .env
+    restart: unless-stopped
+    profiles:
+      - auth  # only starts with: docker compose --profile auth up

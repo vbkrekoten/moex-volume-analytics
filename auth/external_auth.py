@@ -168,11 +168,31 @@ def render_login_form() -> None:
 
 
 def _render_code_input(is_registration: bool) -> None:
-    """Show code input with countdown timer and resend button."""
+    """Show code input with live countdown timer and resend button."""
     ts = st.session_state.get(_CODE_TS_KEY, 0)
     elapsed = int(time.time() - ts)
     remaining = max(0, _CODE_TTL - elapsed)
     mins, secs = divmod(remaining, 60)
+
+    # Auto-refresh every 1s while code is active (live countdown)
+    if remaining > 0:
+        st.markdown(
+            '<script>'
+            'if (!window._authTimer) {'
+            '  window._authTimer = setInterval(() => {'
+            '    const el = document.getElementById("auth-countdown");'
+            '    if (!el) { clearInterval(window._authTimer); window._authTimer=null; return; }'
+            '    let s = parseInt(el.dataset.remaining) - 1;'
+            '    if (s < 0) { clearInterval(window._authTimer); window._authTimer=null; return; }'
+            '    el.dataset.remaining = s;'
+            '    let m = Math.floor(s/60), sec = s%60;'
+            '    el.textContent = m + ":" + String(sec).padStart(2,"0");'
+            '    if (s <= 0) el.style.color = "#ff6b6b";'
+            '  }, 1000);'
+            '}'
+            '</script>',
+            unsafe_allow_html=True,
+        )
 
     # Countdown + resend row
     col_timer, col_resend = st.columns([2, 1])
@@ -180,7 +200,9 @@ def _render_code_input(is_registration: bool) -> None:
         if remaining > 0:
             st.markdown(
                 f'<div style="color: #9ca3af; font-size: 0.85rem;">'
-                f'Код действителен ещё <b style="color: #f0b429;">{mins}:{secs:02d}</b>'
+                f'Код действителен ещё '
+                f'<b id="auth-countdown" data-remaining="{remaining}" '
+                f'style="color: #f0b429;">{mins}:{secs:02d}</b>'
                 f'</div>',
                 unsafe_allow_html=True,
             )

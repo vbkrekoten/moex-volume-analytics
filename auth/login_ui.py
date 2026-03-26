@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import streamlit as st
 
-from auth.config import TG_BOT_USERNAME
+from auth.config import TG_BOT_USERNAME, LOCKR_ENABLED
 from auth.external_auth import render_login_form, render_registration_form
-from auth.lockr_oidc import get_auth_url
 
 
 def render_login_page() -> None:
@@ -19,13 +18,15 @@ def render_login_page() -> None:
         unsafe_allow_html=True,
     )
 
-    tab_ext, tab_lockr = st.tabs(["Внешний пользователь", "Сотрудник Группы М"])
-
-    with tab_ext:
+    if LOCKR_ENABLED:
+        tab_ext, tab_lockr = st.tabs(["Внешний пользователь", "Сотрудник Группы М"])
+        with tab_ext:
+            _render_external_tab()
+        with tab_lockr:
+            _render_lockr_tab()
+    else:
+        # Only Telegram auth available
         _render_external_tab()
-
-    with tab_lockr:
-        _render_lockr_tab()
 
 
 def _render_external_tab() -> None:
@@ -62,6 +63,8 @@ def _render_external_tab() -> None:
 
 def _render_lockr_tab() -> None:
     """Lockr SSO login — single button redirect."""
+    from auth.lockr_oidc import get_auth_url
+
     st.markdown(
         '<div class="glass-card" style="border-left: 3px solid #f0b429; padding: 0.8rem 1rem;">'
         '<div style="font-size: 0.88rem; color: #d1d5db; line-height: 1.55;">'

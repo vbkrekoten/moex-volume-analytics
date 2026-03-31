@@ -27,7 +27,7 @@ def render_savings_section(params: dict, fetch_func) -> None:
     st.markdown(
         '<div class="section-header">'
         '<h2>Сбережения домохозяйств</h2>'
-        '<p>Структура финансовых активов населения по данным ЦБ РФ (квартальные балансы)</p>'
+        '<p>Структура финансовых активов населения по данным ЦБ РФ (помесячные данные)</p>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -132,13 +132,17 @@ def _get_latest(pivot: pd.DataFrame, indicators: list[str]) -> dict[str, float]:
 def _render_kpi(pivot: pd.DataFrame) -> None:
     """Render hierarchical KPI: total on top, components below."""
 
-    # Determine the two latest dates for comparison
-    dates = pivot.index.sort_values()
-    if len(dates) < 2:
+    # Find latest date where key indicators have real data (not NaN/0)
+    key_col = "HH_DEPOSITS_TOTAL"  # always present if data exists
+    if key_col not in pivot.columns:
+        key_col = pivot.columns[0]
+    valid = pivot[key_col].dropna()
+    valid = valid[valid > 0]
+    if len(valid) < 2:
         st.info("Недостаточно данных для отображения.")
         return
-    latest_date = dates[-1]
-    prev_date = dates[-2]
+    latest_date = valid.index[-1]
+    prev_date = valid.index[-2]
 
     # Format dates for display
     latest_str = pd.Timestamp(latest_date).strftime("%d.%m.%Y")

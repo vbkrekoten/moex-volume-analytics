@@ -308,15 +308,21 @@ def _render_distribution_block(impact_df: pd.DataFrame, agg: dict):
         st.markdown("##### Топ-тикеры по отклику")
         ticker_summary = agg.get("ticker_summary", [])
         if ticker_summary:
-            top_df = pd.DataFrame(ticker_summary[:20])
-            top_df.columns = ["Тикер", "Идей", "Сред. ΔCAV", "Сред. CAV", "Сред. пик AV", "% значимых"]
+            top_df = pd.DataFrame(ticker_summary[:20]).rename(columns={
+                "ticker": "Тикер", "n_ideas": "Идей",
+                "avg_delta_cav": "Сред. ΔCAV", "avg_cav": "Сред. CAV",
+                "avg_peak_av": "Сред. пик AV", "pct_significant": "% значимых",
+            })
+            fmt = {}
+            for c in ["Сред. ΔCAV", "Сред. CAV"]:
+                if c in top_df.columns:
+                    fmt[c] = "{:+.3f}"
+            if "Сред. пик AV" in top_df.columns:
+                fmt["Сред. пик AV"] = "{:.2f}x"
+            if "% значимых" in top_df.columns:
+                fmt["% значимых"] = "{:.0f}%"
             st.dataframe(
-                top_df.style.format({
-                    "Сред. ΔCAV": "{:+.3f}",
-                    "Сред. CAV": "{:+.3f}",
-                    "Сред. пик AV": "{:.2f}x",
-                    "% значимых": "{:.0f}%",
-                }),
+                top_df.style.format(fmt),
                 use_container_width=True,
                 hide_index=True,
                 height=360,
@@ -344,15 +350,21 @@ def _render_source_block(impact_df: pd.DataFrame, agg: dict):
 
     with col_table:
         st.markdown("###### Топ источники по среднему CAV")
-        src_df = pd.DataFrame(source_summary)
-        src_df.columns = ["Источник", "Идей", "Сред. ΔCAV", "Сред. CAV", "Сред. пик AV", "% значимых"]
+        src_df = pd.DataFrame(source_summary).rename(columns={
+            "source": "Источник", "n_ideas": "Идей",
+            "avg_delta_cav": "Сред. ΔCAV", "avg_cav": "Сред. CAV",
+            "avg_peak_av": "Сред. пик AV", "pct_significant": "% значимых",
+        })
+        fmt = {}
+        for c in ["Сред. ΔCAV", "Сред. CAV"]:
+            if c in src_df.columns:
+                fmt[c] = "{:+.3f}"
+        if "Сред. пик AV" in src_df.columns:
+            fmt["Сред. пик AV"] = "{:.2f}x"
+        if "% значимых" in src_df.columns:
+            fmt["% значимых"] = "{:.0f}%"
         st.dataframe(
-            src_df.style.format({
-                "Сред. ΔCAV": "{:+.3f}",
-                "Сред. CAV": "{:+.3f}",
-                "Сред. пик AV": "{:.2f}x",
-                "% значимых": "{:.0f}%",
-            }),
+            src_df.style.format(fmt),
             use_container_width=True,
             hide_index=True,
             height=500,

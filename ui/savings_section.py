@@ -132,14 +132,27 @@ def _get_latest(pivot: pd.DataFrame, indicators: list[str]) -> dict[str, float]:
 def _render_kpi(pivot: pd.DataFrame) -> None:
     """Render hierarchical KPI: total on top, components below."""
 
+    # Determine the two latest dates for comparison
+    dates = pivot.index.sort_values()
+    if len(dates) < 2:
+        st.info("Недостаточно данных для отображения.")
+        return
+    latest_date = dates[-1]
+    prev_date = dates[-2]
+
+    # Format dates for display
+    latest_str = pd.Timestamp(latest_date).strftime("%d.%m.%Y")
+    prev_str = pd.Timestamp(prev_date).strftime("%d.%m.%Y")
+
     def _get_vals(indicator):
         if indicator not in pivot.columns:
             return None, None, None
-        s = pivot[indicator].dropna()
-        if len(s) >= 2:
-            return s.iloc[-1], s.iloc[-1] - s.iloc[-2], s.iloc[-2]
-        elif len(s) == 1:
-            return s.iloc[-1], None, None
+        latest_val = pivot.loc[latest_date, indicator] if pd.notna(pivot.loc[latest_date].get(indicator)) else None
+        prev_val = pivot.loc[prev_date, indicator] if pd.notna(pivot.loc[prev_date].get(indicator)) else None
+        if latest_val is not None and prev_val is not None:
+            return float(latest_val), float(latest_val) - float(prev_val), float(prev_val)
+        elif latest_val is not None:
+            return float(latest_val), None, None
         return None, None, None
 
     def _card_html(label, value_bln, delta_bln=None, prev_bln=None, color="#f0b429", big=False):
@@ -153,8 +166,8 @@ def _render_kpi(pivot: pd.DataFrame) -> None:
             arrow = "▲" if d_trln >= 0 else "▼"
             d_color = "#51cf66" if d_trln >= 0 else "#ff6b6b"
             delta_html = (
-                f'<div style="font-size:0.7rem;color:{d_color};margin-top:2px;">'
-                f'{arrow} {d_trln:+,.1f} ({pct:+.1f}%)</div>'
+                f'<div style="font-size:0.65rem;color:{d_color};margin-top:2px;">'
+                f'{arrow} {d_trln:+,.1f} трлн ({pct:+.1f}%) к {prev_str}</div>'
             )
         return (
             f'<div style="background:rgba(17,24,39,0.5);border:1px solid rgba(255,255,255,0.06);'
@@ -166,7 +179,7 @@ def _render_kpi(pivot: pd.DataFrame) -> None:
             f'{delta_html}</div>'
         )
 
-    # Compute total
+    # Compute total from main components
     main_keys = list(MAIN_COMPONENTS.keys())
     total_val = 0
     total_prev = 0
@@ -178,14 +191,15 @@ def _render_kpi(pivot: pd.DataFrame) -> None:
                 total_prev += p
     total_delta = total_val - total_prev if total_prev else None
 
-    # Row 1: Total (full width, large)
+    # Row 1: Total (full width, large) with date
     st.markdown(
-        _card_html("АКТИВЫ ДОМОХОЗЯЙСТВ (ВСЕГО)", total_val, total_delta, total_prev,
+        _card_html(f"АКТИВЫ ДОМОХОЗЯЙСТВ (ВСЕГО) на {latest_str}",
+                   total_val, total_delta, total_prev,
                    color="#f0b429", big=True),
         unsafe_allow_html=True,
     )
 
-    # Row 2: Components in 2 rows of 4
+    # Row 2-3: Components
     components = [
         ("HH_DEPOSITS_TOTAL", "Депозиты", "#f0b429"),
         ("HH_EQUITIES_TOTAL", "Акции и паи ИФ*", "#cc5de8"),
@@ -196,22 +210,13 @@ def _render_kpi(pivot: pd.DataFrame) -> None:
         ("HH_BROKERAGE", "Брокерские счета", "#74c0fc"),
     ]
 
-    row1 = components[:4]
-    row2 = components[4:]
-
-    cols = st.columns(4)
-    for i, (ind, label, color) in enumerate(row1):
-        v, d, p = _get_vals(ind)
-        if v is not None:
-            with cols[i]:
-                st.markdown(_card_html(label, v, d, p, color=color), unsafe_allow_html=True)
-
-    cols2 = st.columns(4)
-    for i, (ind, label, color) in enumerate(row2):
-        v, d, p = _get_vals(ind)
-        if v is not None:
-            with cols2[i]:
-                st.markdown(_card_html(label, v, d, p, color=color), unsafe_allow_html=True)
+    for row_items in [components[:4], components[4:]]:
+        cols = st.columns(4)
+        for i, (ind, label, color) in enumerate(row_items):
+            v, d, p = _get_vals(ind)
+            if v is not None:
+                with cols[i]:
+                    st.markdown(_card_html(label, v, d, p, color=color), unsafe_allow_html=True)
 
 
 def _render_table(pivot: pd.DataFrame) -> None:

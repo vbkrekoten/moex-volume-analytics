@@ -167,7 +167,7 @@ def _render_kpi(pivot: pd.DataFrame) -> None:
             d_color = "#51cf66" if d_trln >= 0 else "#ff6b6b"
             delta_html = (
                 f'<div style="font-size:0.65rem;color:{d_color};margin-top:2px;">'
-                f'{arrow} {d_trln:+,.1f} трлн ({pct:+.1f}%) к {prev_str}</div>'
+                f'{arrow} {d_trln:+,.1f} трлн ({pct:+.1f}%)</div>'
             )
         return (
             f'<div style="background:rgba(17,24,39,0.5);border:1px solid rgba(255,255,255,0.06);'
@@ -191,9 +191,17 @@ def _render_kpi(pivot: pd.DataFrame) -> None:
                 total_prev += p
     total_delta = total_val - total_prev if total_prev else None
 
-    # Row 1: Total (full width, large) with date
+    # Date label (one place for both dates)
     st.markdown(
-        _card_html(f"АКТИВЫ ДОМОХОЗЯЙСТВ (ВСЕГО) на {latest_str}",
+        f'<div style="font-size:0.8rem;color:#6b7280;margin-bottom:0.5rem;">'
+        f'Данные на <b style="color:#9ca3af;">{latest_str}</b>, '
+        f'изменение к <b style="color:#9ca3af;">{prev_str}</b></div>',
+        unsafe_allow_html=True,
+    )
+
+    # Row 1: Total (full width, large)
+    st.markdown(
+        _card_html("АКТИВЫ ДОМОХОЗЯЙСТВ (ВСЕГО)",
                    total_val, total_delta, total_prev,
                    color="#f0b429", big=True),
         unsafe_allow_html=True,

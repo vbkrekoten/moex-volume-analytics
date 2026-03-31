@@ -130,46 +130,88 @@ def _get_latest(pivot: pd.DataFrame, indicators: list[str]) -> dict[str, float]:
 
 
 def _render_kpi(pivot: pd.DataFrame) -> None:
-    """Render top-level KPI cards."""
-    cols = st.columns(5)
+    """Render hierarchical KPI: total on top, components below."""
 
-    def _kpi(col_idx, indicator, label):
-        if indicator in pivot.columns:
-            s = pivot[indicator].dropna()
-            if len(s) >= 2:
-                latest, prev = s.iloc[-1], s.iloc[-2]
-                delta = latest - prev
-                pct = (delta / prev * 100) if prev else 0
-                cols[col_idx].metric(
-                    label, f"{latest / 1000:,.1f} трлн ₽",
-                    f"{delta / 1000:+,.1f} ({pct:+.1f}%)",
-                )
-            elif len(s) == 1:
-                cols[col_idx].metric(label, f"{s.iloc[-1] / 1000:,.1f} трлн ₽")
+    def _get_vals(indicator):
+        if indicator not in pivot.columns:
+            return None, None, None
+        s = pivot[indicator].dropna()
+        if len(s) >= 2:
+            return s.iloc[-1], s.iloc[-1] - s.iloc[-2], s.iloc[-2]
+        elif len(s) == 1:
+            return s.iloc[-1], None, None
+        return None, None, None
 
-    # Compute total as sum of main components
+    def _card_html(label, value_bln, delta_bln=None, prev_bln=None, color="#f0b429", big=False):
+        val_trln = value_bln / 1000
+        size = "1.8rem" if big else "1.2rem"
+        label_size = "0.85rem" if big else "0.7rem"
+        delta_html = ""
+        if delta_bln is not None and prev_bln:
+            d_trln = delta_bln / 1000
+            pct = delta_bln / prev_bln * 100
+            arrow = "▲" if d_trln >= 0 else "▼"
+            d_color = "#51cf66" if d_trln >= 0 else "#ff6b6b"
+            delta_html = (
+                f'<div style="font-size:0.7rem;color:{d_color};margin-top:2px;">'
+                f'{arrow} {d_trln:+,.1f} ({pct:+.1f}%)</div>'
+            )
+        return (
+            f'<div style="background:rgba(17,24,39,0.5);border:1px solid rgba(255,255,255,0.06);'
+            f'border-left:3px solid {color};border-radius:8px;padding:0.6rem 0.8rem;'
+            f'margin-bottom:0.4rem;">'
+            f'<div style="font-size:{label_size};color:#9ca3af;margin-bottom:2px;">{label}</div>'
+            f'<div style="font-size:{size};font-weight:700;color:#e5e7eb;">'
+            f'{val_trln:,.1f} <span style="font-size:0.7rem;color:#6b7280;">трлн ₽</span></div>'
+            f'{delta_html}</div>'
+        )
+
+    # Compute total
     main_keys = list(MAIN_COMPONENTS.keys())
-    total_series = None
+    total_val = 0
+    total_prev = 0
     for k in main_keys:
-        if k in pivot.columns:
-            s = pivot[k].dropna()
-            if total_series is None:
-                total_series = s.copy()
-            else:
-                total_series = total_series.add(s, fill_value=0)
-    if total_series is not None and len(total_series) >= 2:
-        latest, prev = total_series.iloc[-1], total_series.iloc[-2]
-        delta = latest - prev
-        pct = (delta / prev * 100) if prev else 0
-        cols[0].metric("Активы (всего)", f"{latest / 1000:,.1f} трлн ₽",
-                       f"{delta / 1000:+,.1f} ({pct:+.1f}%)")
-    elif total_series is not None and len(total_series) >= 1:
-        cols[0].metric("Активы (всего)", f"{total_series.iloc[-1] / 1000:,.1f} трлн ₽")
+        v, d, p = _get_vals(k)
+        if v is not None:
+            total_val += v
+            if p is not None:
+                total_prev += p
+    total_delta = total_val - total_prev if total_prev else None
 
-    _kpi(1, "HH_DEPOSITS_TOTAL", "Депозиты")
-    _kpi(2, "HH_EQUITIES_TOTAL", "Акции и паи ИФ")
-    _kpi(3, "HH_CASH_TOTAL", "Наличные")
-    _kpi(4, "HH_INSURANCE_PENSION", "Страх./пенс.")
+    # Row 1: Total (full width, large)
+    st.markdown(
+        _card_html("АКТИВЫ ДОМОХОЗЯЙСТВ (ВСЕГО)", total_val, total_delta, total_prev,
+                   color="#f0b429", big=True),
+        unsafe_allow_html=True,
+    )
+
+    # Row 2: Components in 2 rows of 4
+    components = [
+        ("HH_DEPOSITS_TOTAL", "Депозиты", "#f0b429"),
+        ("HH_EQUITIES_TOTAL", "Акции и паи ИФ*", "#cc5de8"),
+        ("HH_CASH_TOTAL", "Наличные", "#ffa94d"),
+        ("HH_INSURANCE_PENSION", "Страховые / пенсионные", "#20c997"),
+        ("HH_ESCROW_CBR", "Эскроу", "#ff6b6b"),
+        ("HH_BONDS", "Облигации", "#51cf66"),
+        ("HH_BROKERAGE", "Брокерские счета", "#74c0fc"),
+    ]
+
+    row1 = components[:4]
+    row2 = components[4:]
+
+    cols = st.columns(4)
+    for i, (ind, label, color) in enumerate(row1):
+        v, d, p = _get_vals(ind)
+        if v is not None:
+            with cols[i]:
+                st.markdown(_card_html(label, v, d, p, color=color), unsafe_allow_html=True)
+
+    cols2 = st.columns(4)
+    for i, (ind, label, color) in enumerate(row2):
+        v, d, p = _get_vals(ind)
+        if v is not None:
+            with cols2[i]:
+                st.markdown(_card_html(label, v, d, p, color=color), unsafe_allow_html=True)
 
 
 def _render_table(pivot: pd.DataFrame) -> None:

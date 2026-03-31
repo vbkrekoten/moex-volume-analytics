@@ -119,6 +119,7 @@ def _parse_monetary_agg(raw: bytes, date_from: date, date_to: date) -> pd.DataFr
 
     records = []
     row_map = {
+        3: "HH_CASH_M0",           # Cash in circulation (M0)
         7: "HH_SAVINGS_ACCOUNTS",
         8: "HH_CURRENT_ACCOUNTS",
         13: "HH_TERM_DEPOSITS",
@@ -177,6 +178,7 @@ def fetch_household_savings(
       HH_SAVINGS_TOTAL      — total deposits incl. escrow (from funds_all)
       HH_DEPOSITS_NO_ESCROW — deposits excl. escrow (from funds_all)
       HH_ESCROW             — escrow accounts (from funds_all)
+      HH_CASH_M0            — cash in circulation / M0 (from monetary_agg)
       HH_TERM_DEPOSITS      — term deposits (from monetary_agg)
       HH_SAVINGS_ACCOUNTS   — interest-bearing checking (from monetary_agg)
       HH_CURRENT_ACCOUNTS   — non-interest checking (from monetary_agg)

@@ -22,6 +22,7 @@ from ui.monthly_data_section import render_monthly_data_section
 from ui.data_tab import render_data_section
 from ui.forecast_section import render_forecast_section
 from ui.ideas_section import render_ideas_section
+from ui.savings_section import render_savings_section
 
 st.set_page_config(
     page_title="MOEX Volume Analytics",
@@ -165,11 +166,12 @@ else:
 
 
 # --- Tabs ---
-tab_overview, tab_analysis, tab_ideas, tab_forecast, tab_monthly, tab_data = st.tabs([
+tab_overview, tab_analysis, tab_ideas, tab_forecast, tab_savings, tab_monthly, tab_data = st.tabs([
     "Обзор оборотов",
     "Факторный анализ",
     "Влияние инвестидей",
     "Прогноз волатильности",
+    "Сбережения домохозяйств",
     "Помесячные данные",
     "Данные",
 ])
@@ -185,6 +187,9 @@ with tab_ideas:
 
 with tab_forecast:
     render_forecast_section(daily_vol, daily_factors, params, fetch_func=_fetch_all)
+
+with tab_savings:
+    render_savings_section(params, fetch_func=_fetch_all)
 
 with tab_monthly:
     render_monthly_data_section(active_vol, active_factors, params)

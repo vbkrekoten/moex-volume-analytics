@@ -1,11 +1,10 @@
-"""Fetch full household financial assets from CBR quarterly balance sheet.
+"""Fetch full household financial assets from CBR monthly balance sheet.
 
-Source: https://cbr.ru/vfs/statistics/households/households_b.xlsx
-Sheet: "Балансы" — quarterly data from Q1 2018.
+Source: https://cbr.ru/vfs/statistics/households/households_bm.xlsx
+Sheet: "Балансы" — monthly data from Jan 2018.
 All values in billions RUB.
 
-Row map (based on CBR structure as of Q3 2025):
-  R5:  АКТИВЫ (total)
+Row map (based on CBR monthly file structure as of Feb 2026):
   R6:  Наличная валюта (total cash)
   R7:  Наличная национальная валюта (cash RUB)
   R8:  Наличная иностранная валюта (cash FX)
@@ -15,15 +14,16 @@ Row map (based on CBR structure as of Q3 2025):
   R18: Депозиты в банках-нерезидентах
   R21: Средства на брокерских счетах
   R24: Долговые ценные бумаги (bonds)
-  R35: Займы (loans issued by households)
-  R40: Акции и участие в капитале (equities total)
-  R41: Котируемые акции резидентов
-  R44: Некотируемые акции и прочее участие
-  R45: Паи и акции инвестиционных фондов (резидентов)
-  R48: Котируемые акции нерезидентов
-  R55: Страховые и пенсионные резервы
-  R59: Дебиторская задолженность
-  R60: Средства на счетах эскроу
+  R51: Акции и паи инвестиционных фондов*
+  R52: Котируемые акции резидентов
+  R60: Некотируемые акции резидентов
+  R61: Паи и акции инвестиционных фондов (резидентов)
+  R64: Котируемые акции нерезидентов
+  R70: Страховые и пенсионные резервы
+  R74: Средства на счетах эскроу
+
+* Помесячная оценка акций содержит ограниченный набор инструментов
+  (некотируемые акции и прочее участие в капитале нерезидентов не включены).
 """
 
 import io
@@ -35,12 +35,13 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-HOUSEHOLDS_URL = "https://cbr.ru/vfs/statistics/households/households_b.xlsx"
+# Monthly file (not quarterly!)
+HOUSEHOLDS_URL = "https://cbr.ru/vfs/statistics/households/households_bm.xlsx"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 # Row number → indicator name (sheet "Балансы", 1-indexed)
+# Based on monthly file structure (households_bm.xlsx)
 ROW_MAP = {
-    5: "HH_ASSETS_TOTAL",
     6: "HH_CASH_TOTAL",
     7: "HH_CASH_RUB",
     8: "HH_CASH_FX",
@@ -50,37 +51,32 @@ ROW_MAP = {
     18: "HH_DEPOSITS_NONRESIDENT",
     21: "HH_BROKERAGE",
     24: "HH_BONDS",
-    35: "HH_LOANS_ISSUED",
-    40: "HH_EQUITIES_TOTAL",
-    41: "HH_EQUITIES_LISTED",
-    44: "HH_EQUITIES_UNLISTED",
-    45: "HH_FUNDS",
-    48: "HH_EQUITIES_FOREIGN",
-    55: "HH_INSURANCE_PENSION",
-    59: "HH_RECEIVABLES",
-    60: "HH_ESCROW_CBR",
+    51: "HH_EQUITIES_TOTAL",
+    52: "HH_EQUITIES_LISTED",
+    60: "HH_EQUITIES_UNLISTED",
+    61: "HH_FUNDS",
+    64: "HH_EQUITIES_FOREIGN",
+    70: "HH_INSURANCE_PENSION",
+    74: "HH_ESCROW_CBR",
 }
 
 # Russian labels for UI
 INDICATOR_LABELS = {
-    "HH_ASSETS_TOTAL": "Активы (всего)",
     "HH_CASH_TOTAL": "Наличные (всего)",
     "HH_CASH_RUB": "Наличные рубли",
     "HH_CASH_FX": "Наличная иностранная валюта",
     "HH_DEPOSITS_TOTAL": "Депозиты (всего)",
     "HH_DEPOSITS_DEMAND": "Переводные депозиты (текущие)",
-    "HH_DEPOSITS_TERM": "Срочные депозиты (вкл. валютные)",
+    "HH_DEPOSITS_TERM": "Срочные депозиты (вкл. валютные и драгметаллы)",
     "HH_DEPOSITS_NONRESIDENT": "Депозиты в банках-нерезидентах",
     "HH_BROKERAGE": "Брокерские счета",
     "HH_BONDS": "Долговые ценные бумаги (облигации)",
-    "HH_LOANS_ISSUED": "Займы выданные",
-    "HH_EQUITIES_TOTAL": "Акции и участие в капитале (всего)",
+    "HH_EQUITIES_TOTAL": "Акции и паи ИФ (всего)*",
     "HH_EQUITIES_LISTED": "Котируемые акции (резиденты)",
-    "HH_EQUITIES_UNLISTED": "Некотируемые акции и прочее участие",
+    "HH_EQUITIES_UNLISTED": "Некотируемые акции (резиденты)",
     "HH_FUNDS": "Паи инвестиционных фондов",
     "HH_EQUITIES_FOREIGN": "Иностранные акции",
     "HH_INSURANCE_PENSION": "Страховые и пенсионные резервы",
-    "HH_RECEIVABLES": "Дебиторская задолженность",
     "HH_ESCROW_CBR": "Счета эскроу",
 }
 
@@ -89,7 +85,7 @@ def fetch_household_assets(
     date_from: date = date(2018, 1, 1),
     date_to: date | None = None,
 ) -> pd.DataFrame:
-    """Download and parse CBR quarterly household balance sheet.
+    """Download and parse CBR monthly household balance sheet.
 
     Returns DataFrame with columns: period_date, indicator, value.
     Values are in billions RUB.
@@ -101,7 +97,7 @@ def fetch_household_assets(
         resp = requests.get(HOUSEHOLDS_URL, timeout=60, headers=HEADERS)
         resp.raise_for_status()
     except requests.RequestException as e:
-        logger.error("Failed to download households_b.xlsx: %s", e)
+        logger.error("Failed to download households_bm.xlsx: %s", e)
         return pd.DataFrame()
 
     return _parse_balance_sheet(resp.content, date_from, date_to)
@@ -110,7 +106,7 @@ def fetch_household_assets(
 def _parse_balance_sheet(
     raw: bytes, date_from: date, date_to: date,
 ) -> pd.DataFrame:
-    """Parse the 'Балансы' sheet from households_b.xlsx."""
+    """Parse the 'Балансы' sheet from households_bm.xlsx."""
     import openpyxl
 
     wb = openpyxl.load_workbook(io.BytesIO(raw), data_only=True)
@@ -153,7 +149,7 @@ def _parse_balance_sheet(
             })
 
     wb.close()
-    logger.info("Parsed %d records from households_b.xlsx", len(records))
+    logger.info("Parsed %d records from households_bm.xlsx", len(records))
 
     # Log summary
     df = pd.DataFrame(records)
@@ -161,7 +157,7 @@ def _parse_balance_sheet(
         for ind in sorted(df["indicator"].unique()):
             sub = df[df["indicator"] == ind]
             logger.info(
-                "  %s: %d records, latest=%.1f bln",
+                "  %s: %d months, latest=%.1f bln",
                 ind, len(sub), sub["value"].iloc[-1],
             )
     return df

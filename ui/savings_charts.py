@@ -7,17 +7,15 @@ import pandas as pd
 
 from ui.charts import DARK_LAYOUT
 
-# Main components for stacked area (top-level breakdown of HH_ASSETS_TOTAL)
+# Main components for stacked area (top-level breakdown)
 MAIN_COMPONENTS = {
     "HH_CASH_TOTAL": ("Наличные", "#ffa94d"),
     "HH_DEPOSITS_TOTAL": ("Депозиты", "#f0b429"),
     "HH_BROKERAGE": ("Брокерские счета", "#74c0fc"),
     "HH_BONDS": ("Облигации", "#51cf66"),
-    "HH_EQUITIES_TOTAL": ("Акции и участие в капитале", "#cc5de8"),
+    "HH_EQUITIES_TOTAL": ("Акции и паи ИФ*", "#cc5de8"),
     "HH_INSURANCE_PENSION": ("Страховые/пенсионные", "#20c997"),
     "HH_ESCROW_CBR": ("Эскроу", "#ff6b6b"),
-    "HH_LOANS_ISSUED": ("Займы выданные", "#868e96"),
-    "HH_RECEIVABLES": ("Дебиторская задолженность", "#495057"),
 }
 
 # Deposit sub-components

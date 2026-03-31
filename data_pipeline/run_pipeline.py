@@ -227,7 +227,7 @@ def run_full_pipeline(progress_callback=None):
 
     brent_df = fetch_brent_from_db()
 
-    # Fetch household savings from CBR (all components)
+    # Fetch household savings from CBR (monthly components)
     try:
         savings_df = fetch_household_savings(DATE_FROM)
         if not savings_df.empty:
@@ -236,6 +236,17 @@ def run_full_pipeline(progress_callback=None):
         import logging
         logging.getLogger(__name__).warning("Failed to fetch CBR savings data: %s", e)
         savings_df = pd.DataFrame()
+
+    # Fetch full quarterly household assets from CBR balance sheet
+    try:
+        from data_pipeline.cbr_household_assets import fetch_household_assets
+        hh_assets_df = fetch_household_assets(DATE_FROM)
+        if not hh_assets_df.empty:
+            upsert_rows(client, "vol_macro", hh_assets_df.to_dict("records"))
+            logger.info("  Upserted %d household assets rows", len(hh_assets_df))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Failed to fetch CBR household assets: %s", e)
 
     daily_factors = compute_all_daily_factors(
         index_df=index_full,

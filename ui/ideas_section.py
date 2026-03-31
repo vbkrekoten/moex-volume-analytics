@@ -345,9 +345,10 @@ def _render_source_block(impact_df: pd.DataFrame, agg: dict):
     with col_table:
         st.markdown("###### Топ источники по среднему CAV")
         src_df = pd.DataFrame(source_summary)
-        src_df.columns = ["Источник", "Идей", "Сред. CAV", "Сред. пик AV", "% значимых"]
+        src_df.columns = ["Источник", "Идей", "Сред. ΔCAV", "Сред. CAV", "Сред. пик AV", "% значимых"]
         st.dataframe(
             src_df.style.format({
+                "Сред. ΔCAV": "{:+.3f}",
                 "Сред. CAV": "{:+.3f}",
                 "Сред. пик AV": "{:.2f}x",
                 "% значимых": "{:.0f}%",

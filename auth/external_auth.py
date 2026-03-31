@@ -174,39 +174,35 @@ def _render_code_input(is_registration: bool) -> None:
     remaining = max(0, _CODE_TTL - elapsed)
     mins, secs = divmod(remaining, 60)
 
-    # Auto-refresh every 1s while code is active (live countdown)
+    # Live JS countdown via st.components (st.markdown strips <script>)
     if remaining > 0:
-        st.markdown(
-            '<script>'
-            'if (!window._authTimer) {'
-            '  window._authTimer = setInterval(() => {'
-            '    const el = document.getElementById("auth-countdown");'
-            '    if (!el) { clearInterval(window._authTimer); window._authTimer=null; return; }'
-            '    let s = parseInt(el.dataset.remaining) - 1;'
-            '    if (s < 0) { clearInterval(window._authTimer); window._authTimer=null; return; }'
-            '    el.dataset.remaining = s;'
-            '    let m = Math.floor(s/60), sec = s%60;'
-            '    el.textContent = m + ":" + String(sec).padStart(2,"0");'
-            '    if (s <= 0) el.style.color = "#ff6b6b";'
-            '  }, 1000);'
-            '}'
-            '</script>',
-            unsafe_allow_html=True,
+        import streamlit.components.v1 as components
+        components.html(
+            f"""
+            <div id="timer-wrap" style="color:#9ca3af;font-size:0.85rem;font-family:Inter,sans-serif;">
+                Код действителен ещё
+                <b id="cd" style="color:#f0b429;">{mins}:{secs:02d}</b>
+            </div>
+            <script>
+            (function() {{
+                let s = {remaining};
+                const el = document.getElementById("cd");
+                const iv = setInterval(() => {{
+                    s--;
+                    if (s <= 0) {{ clearInterval(iv); el.style.color="#ff6b6b"; el.textContent="0:00"; return; }}
+                    let m = Math.floor(s/60), sec = s%60;
+                    el.textContent = m + ":" + String(sec).padStart(2,"0");
+                }}, 1000);
+            }})();
+            </script>
+            """,
+            height=30,
         )
 
     # Countdown + resend row
     col_timer, col_resend = st.columns([2, 1])
     with col_timer:
-        if remaining > 0:
-            st.markdown(
-                f'<div style="color: #9ca3af; font-size: 0.85rem;">'
-                f'Код действителен ещё '
-                f'<b id="auth-countdown" data-remaining="{remaining}" '
-                f'style="color: #f0b429;">{mins}:{secs:02d}</b>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-        else:
+        if remaining <= 0:
             st.markdown(
                 '<div style="color: #ff6b6b; font-size: 0.85rem;">'
                 'Код просрочен. Запросите новый.'

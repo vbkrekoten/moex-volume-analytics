@@ -66,10 +66,13 @@ params = render_sidebar()
 # --- Load data with caching ---
 def _fetch_all(table: str, columns: str = "*", date_filter: dict | None = None) -> list[dict]:
     """Fetch all rows from a Supabase table, paginating past 1000-row default."""
+    import time as _time
+
     client = get_client()
     all_data: list[dict] = []
     offset = 0
-    page_size = 1000
+    page_size = 500  # smaller pages to avoid connection resets
+    max_retries = 3
     while True:
         query = client.table(table).select(columns)
         if date_filter:
@@ -78,7 +81,15 @@ def _fetch_all(table: str, columns: str = "*", date_filter: dict | None = None) 
                 query = query.gte(date_col, date_filter["gte"])
             if date_filter.get("lte"):
                 query = query.lte(date_col, date_filter["lte"])
-        resp = query.range(offset, offset + page_size - 1).execute()
+        for attempt in range(max_retries):
+            try:
+                resp = query.range(offset, offset + page_size - 1).execute()
+                break
+            except Exception:
+                if attempt < max_retries - 1:
+                    _time.sleep(1)
+                else:
+                    return all_data  # return what we have so far
         if not resp.data:
             break
         all_data.extend(resp.data)

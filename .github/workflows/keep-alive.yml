@@ -2,8 +2,8 @@ name: Keep Streamlit Alive
 
 on:
   schedule:
-    # Ping every 5 hours to prevent Streamlit Community Cloud from sleeping
-    - cron: "0 1,6,11,16,21 * * *"
+    # Ping every 2 hours as a backup to the pg_cron (which runs every 10 min)
+    - cron: "0 */2 * * *"
   workflow_dispatch:
 
 jobs:
@@ -14,17 +14,20 @@ jobs:
     steps:
       - name: Wake up Streamlit app
         run: |
+          # /healthz bypasses Streamlit Cloud's SSO auth redirect
+          # (main URL redirects into an auth loop when the session is fresh)
+          URL="https://moex-volume-analytics-cvssujr7yjomlejhacd5nn.streamlit.app/healthz"
           for i in 1 2 3; do
             CODE=$(curl -sS -o /dev/null -w "%{http_code}" \
-              --max-time 90 \
-              "https://moex-volume-analytics-cvssujr7yjomlejhacd5nn.streamlit.app/" \
+              --max-time 30 \
+              "$URL" \
               2>/dev/null)
             echo "Attempt $i: HTTP $CODE"
             if [ "$CODE" = "200" ]; then
               echo "App is awake"
               exit 0
             fi
-            echo "Waiting 30s before retry..."
-            sleep 30
+            echo "Waiting 15s before retry..."
+            sleep 15
           done
           echo "::warning::App may still be sleeping after 3 attempts"

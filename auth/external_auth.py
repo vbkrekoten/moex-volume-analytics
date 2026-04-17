@@ -1,47 +1,17 @@
-"""External user registration and login via phone + Telegram verification."""
+"""External user registration/login — simplified: name + phone only.
+
+Telegram verification is temporarily disabled. Users enter their name
+and phone number, and the app creates/updates a user record directly.
+"""
 
 from __future__ import annotations
 
-import random
-import time
 from datetime import datetime
 
 import streamlit as st
 
 from auth.session import set_user
-from auth.telegram_bot import send_code, get_chat_id_by_phone
 from data_pipeline.db import get_client
-
-
-_CODE_KEY = "_auth_code"
-_CODE_TS_KEY = "_auth_code_ts"
-_CODE_PHONE_KEY = "_auth_code_phone"
-_CODE_TTL = 300  # 5 minutes
-
-
-def _generate_code() -> str:
-    return f"{random.randint(100000, 999999)}"
-
-
-def _store_code(phone: str, code: str) -> None:
-    st.session_state[_CODE_KEY] = code
-    st.session_state[_CODE_TS_KEY] = time.time()
-    st.session_state[_CODE_PHONE_KEY] = phone
-
-
-def _verify_code(entered: str) -> bool:
-    stored = st.session_state.get(_CODE_KEY)
-    ts = st.session_state.get(_CODE_TS_KEY, 0)
-    if not stored:
-        return False
-    if time.time() - ts > _CODE_TTL:
-        return False
-    return entered.strip() == stored
-
-
-def _clear_code() -> None:
-    for k in (_CODE_KEY, _CODE_TS_KEY, _CODE_PHONE_KEY):
-        st.session_state.pop(k, None)
 
 
 def _normalize_phone(raw: str) -> str:
@@ -54,6 +24,12 @@ def _normalize_phone(raw: str) -> str:
     return f"+{digits}"
 
 
+def _is_valid_phone(phone: str) -> bool:
+    """Check normalized phone matches +7XXXXXXXXXX (11 digits total)."""
+    digits = phone.lstrip("+")
+    return digits.isdigit() and len(digits) == 11
+
+
 # --- DB helpers ---
 
 def _find_user_by_phone(phone: str) -> dict | None:
@@ -62,7 +38,7 @@ def _find_user_by_phone(phone: str) -> dict | None:
     return resp.data[0] if resp.data else None
 
 
-def _create_user(first_name: str, last_name: str, phone: str, email: str) -> dict:
+def _create_user(first_name: str, last_name: str, phone: str, email: str = "") -> dict:
     client = get_client()
     row = {
         "auth_type": "external",
@@ -70,7 +46,7 @@ def _create_user(first_name: str, last_name: str, phone: str, email: str) -> dic
         "last_name": last_name,
         "phone": phone,
         "email": email or None,
-        "phone_verified": True,
+        "phone_verified": False,  # Telegram verification disabled
         "last_login": datetime.utcnow().isoformat(),
     }
     resp = client.table("app_users").insert(row).execute()
@@ -80,184 +56,80 @@ def _create_user(first_name: str, last_name: str, phone: str, email: str) -> dic
 def _update_last_login(phone: str) -> None:
     client = get_client()
     client.table("app_users").update(
-        {"last_login": datetime.utcnow().isoformat(), "phone_verified": True}
+        {"last_login": datetime.utcnow().isoformat()}
     ).eq("phone", phone).execute()
 
 
 # --- Public API ---
 
 def render_registration_form() -> None:
-    """Render registration form for new external users."""
+    """Render registration form for new users (name + phone, no verification)."""
     st.markdown("##### Регистрация")
     with st.form("ext_register"):
         first_name = st.text_input("Имя *")
         last_name = st.text_input("Фамилия *")
         phone_raw = st.text_input("Телефон * (+7...)")
         email = st.text_input("Email")
-        submitted = st.form_submit_button("Получить код в Telegram")
+        submitted = st.form_submit_button("Зарегистрироваться", type="primary")
 
-    if submitted:
-        if not first_name or not last_name or not phone_raw:
-            st.error("Заполните обязательные поля.")
-            return
+    if not submitted:
+        return
 
-        phone = _normalize_phone(phone_raw)
-        existing = _find_user_by_phone(phone)
-        if existing:
-            st.warning("Этот номер уже зарегистрирован. Используйте «Вход».")
-            return
+    if not first_name or not last_name or not phone_raw:
+        st.error("Заполните обязательные поля: имя, фамилия, телефон.")
+        return
 
-        chat_id = get_chat_id_by_phone(phone)
-        if not chat_id:
-            from auth.config import TG_BOT_USERNAME
-            bot_link = f"https://t.me/{TG_BOT_USERNAME}" if TG_BOT_USERNAME else "Telegram-бот"
-            st.error(
-                f"Номер {phone} не привязан к Telegram-боту. "
-                f"Сначала напишите боту {bot_link} и поделитесь номером телефона."
-            )
-            return
+    phone = _normalize_phone(phone_raw)
+    if not _is_valid_phone(phone):
+        st.error("Некорректный номер телефона. Ожидаемый формат: +7XXXXXXXXXX.")
+        return
 
-        code = _generate_code()
-        _store_code(phone, code)
-        ok = send_code(chat_id, code)
-        if ok:
-            st.session_state["_ext_reg"] = {
-                "first_name": first_name, "last_name": last_name,
-                "phone": phone, "email": email,
-            }
-            st.success("Код отправлен в Telegram. Введите его ниже.")
-        else:
-            st.error("Не удалось отправить код. Попробуйте позже.")
+    existing = _find_user_by_phone(phone)
+    if existing:
+        st.warning("Этот номер уже зарегистрирован. Используйте «Вход».")
+        return
 
-    # Code verification
-    if st.session_state.get(_CODE_KEY) and st.session_state.get("_ext_reg"):
-        _render_code_input(is_registration=True)
+    _create_user(first_name.strip(), last_name.strip(), phone, email.strip())
+    set_user({
+        "auth_type": "external",
+        "first_name": first_name.strip(),
+        "last_name": last_name.strip(),
+        "email": email.strip() or None,
+        "phone": phone,
+    })
+    st.rerun()
 
 
 def render_login_form() -> None:
-    """Render login form for returning external users."""
+    """Render login form for existing users (phone only)."""
     st.markdown("##### Вход по телефону")
     with st.form("ext_login"):
         phone_raw = st.text_input("Телефон (+7...)")
-        submitted = st.form_submit_button("Получить код в Telegram")
+        submitted = st.form_submit_button("Войти", type="primary")
 
-    if submitted and phone_raw:
-        phone = _normalize_phone(phone_raw)
-        existing = _find_user_by_phone(phone)
-        if not existing:
-            st.error("Номер не найден. Пройдите регистрацию.")
-            return
+    if not submitted:
+        return
 
-        chat_id = get_chat_id_by_phone(phone)
-        if not chat_id:
-            st.error("Номер не привязан к Telegram-боту.")
-            return
+    if not phone_raw:
+        st.error("Введите номер телефона.")
+        return
 
-        code = _generate_code()
-        _store_code(phone, code)
-        ok = send_code(chat_id, code)
-        if ok:
-            st.session_state["_ext_login_phone"] = phone
-            st.success("Код отправлен в Telegram.")
-        else:
-            st.error("Не удалось отправить код.")
+    phone = _normalize_phone(phone_raw)
+    if not _is_valid_phone(phone):
+        st.error("Некорректный номер телефона. Ожидаемый формат: +7XXXXXXXXXX.")
+        return
 
-    # Code verification
-    if st.session_state.get(_CODE_KEY) and st.session_state.get("_ext_login_phone"):
-        _render_code_input(is_registration=False)
+    existing = _find_user_by_phone(phone)
+    if not existing:
+        st.error("Номер не найден. Пройдите регистрацию.")
+        return
 
-
-def _render_code_input(is_registration: bool) -> None:
-    """Show code input with live countdown timer and resend button."""
-    ts = st.session_state.get(_CODE_TS_KEY, 0)
-    elapsed = int(time.time() - ts)
-    remaining = max(0, _CODE_TTL - elapsed)
-    mins, secs = divmod(remaining, 60)
-
-    # Live JS countdown via st.components (st.markdown strips <script>)
-    if remaining > 0:
-        import streamlit.components.v1 as components
-        components.html(
-            f"""
-            <div id="timer-wrap" style="color:#9ca3af;font-size:0.85rem;font-family:Inter,sans-serif;">
-                Код действителен ещё
-                <b id="cd" style="color:#f0b429;">{mins}:{secs:02d}</b>
-            </div>
-            <script>
-            (function() {{
-                let s = {remaining};
-                const el = document.getElementById("cd");
-                const iv = setInterval(() => {{
-                    s--;
-                    if (s <= 0) {{ clearInterval(iv); el.style.color="#ff6b6b"; el.textContent="0:00"; return; }}
-                    let m = Math.floor(s/60), sec = s%60;
-                    el.textContent = m + ":" + String(sec).padStart(2,"0");
-                }}, 1000);
-            }})();
-            </script>
-            """,
-            height=30,
-        )
-
-    # Countdown + resend row
-    col_timer, col_resend = st.columns([2, 1])
-    with col_timer:
-        if remaining <= 0:
-            st.markdown(
-                '<div style="color: #ff6b6b; font-size: 0.85rem;">'
-                'Код просрочен. Запросите новый.'
-                '</div>',
-                unsafe_allow_html=True,
-            )
-    with col_resend:
-        resend_disabled = remaining > (_CODE_TTL - 30)  # allow resend after 30s
-        if st.button(
-            "Отправить повторно",
-            key="_code_resend",
-            disabled=resend_disabled,
-        ):
-            phone = st.session_state.get(_CODE_PHONE_KEY, "")
-            if phone:
-                chat_id = get_chat_id_by_phone(phone)
-                if chat_id:
-                    code = _generate_code()
-                    _store_code(phone, code)
-                    send_code(chat_id, code)
-                    st.success("Новый код отправлен в Telegram.")
-                    st.rerun()
-
-    # Code input
-    entered = st.text_input("Введите 6-значный код из Telegram", key="_code_input")
-    if st.button("Подтвердить", key="_code_confirm", type="primary"):
-        if _verify_code(entered):
-            if is_registration:
-                reg = st.session_state.pop("_ext_reg", {})
-                _create_user(
-                    reg["first_name"], reg["last_name"],
-                    reg["phone"], reg.get("email", ""),
-                )
-                set_user({
-                    "auth_type": "external",
-                    "first_name": reg["first_name"],
-                    "last_name": reg["last_name"],
-                    "email": reg.get("email"),
-                    "phone": reg["phone"],
-                })
-            else:
-                phone = st.session_state.pop("_ext_login_phone", "")
-                _update_last_login(phone)
-                existing = _find_user_by_phone(phone)
-                set_user({
-                    "auth_type": "external",
-                    "first_name": existing["first_name"],
-                    "last_name": existing["last_name"],
-                    "email": existing.get("email"),
-                    "phone": phone,
-                })
-            _clear_code()
-            st.rerun()
-        else:
-            if remaining <= 0:
-                st.error("Код просрочен. Нажмите «Отправить повторно».")
-            else:
-                st.error("Неверный код. Проверьте и попробуйте снова.")
+    _update_last_login(phone)
+    set_user({
+        "auth_type": "external",
+        "first_name": existing.get("first_name", ""),
+        "last_name": existing.get("last_name", ""),
+        "email": existing.get("email"),
+        "phone": phone,
+    })
+    st.rerun()

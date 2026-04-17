@@ -1,10 +1,10 @@
-"""Login page UI — two modes: external user or Lockr SSO."""
+"""Login page UI — simple external login or Lockr SSO."""
 
 from __future__ import annotations
 
 import streamlit as st
 
-from auth.config import TG_BOT_USERNAME, LOCKR_ENABLED
+from auth.config import LOCKR_ENABLED
 from auth.external_auth import render_login_form, render_registration_form
 
 
@@ -25,28 +25,20 @@ def render_login_page() -> None:
         with tab_lockr:
             _render_lockr_tab()
     else:
-        # Only Telegram auth available
+        # Simplified auth: external users only
         _render_external_tab()
 
 
 def _render_external_tab() -> None:
-    """External user login/registration via phone + Telegram."""
+    """External user login/registration — name + phone only."""
     st.markdown(
         '<div class="glass-card" style="border-left: 3px solid #00d4ff; padding: 0.8rem 1rem;">'
         '<div style="font-size: 0.88rem; color: #d1d5db; line-height: 1.55;">'
-        'Для входа потребуется подтверждение телефона через Telegram-бот.'
+        'Укажите имя, фамилию и номер телефона для доступа к дашборду. '
+        'При повторном входе достаточно ввести номер телефона.'
         '</div></div>',
         unsafe_allow_html=True,
     )
-
-    if TG_BOT_USERNAME:
-        st.markdown(
-            f'<div style="text-align:center; margin: 0.5rem 0;">'
-            f'<a href="https://t.me/{TG_BOT_USERNAME}" target="_blank" '
-            f'style="color: #00d4ff;">Привязать Telegram: @{TG_BOT_USERNAME}</a>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
 
     mode = st.radio(
         "Выберите действие",
